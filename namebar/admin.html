@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>直播字幕条 — 光为云</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  background:#0B1121; color:#E2E8F0; min-height:100vh;
+  display:flex; flex-direction:column; align-items:center;
+}
+#entry-screen, #control-screen{width:100%;max-width:900px;padding:32px 20px;}
+.hidden{display:none!important}
+
+/* ===== Entry Screen ===== */
+.entry-logo{text-align:center;margin-top:60px;margin-bottom:8px}
+.entry-logo h1{font-size:36px;font-weight:900;color:#fff;letter-spacing:-1px}
+.entry-logo h1 span{color:#FF6B00}
+.entry-logo .sub{font-size:14px;color:#94A3B8;margin-top:8px}
+.entry-box{
+  max-width:420px;margin:40px auto;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;padding:32px 28px;
+}
+.entry-box label{display:block;font-size:13px;font-weight:600;color:#94A3B8;margin-bottom:6px}
+.entry-box input{
+  width:100%;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(0,0,0,.3);color:#fff;font-size:15px;outline:none;transition:.2s;
+}
+.entry-box input:focus{border-color:#FF6B00}
+.entry-box .hint{font-size:12px;color:#64748B;margin-top:4px;margin-bottom:20px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;
+  border:none;cursor:pointer;transition:all .2s;color:#fff;
+}
+.btn-primary{background:linear-gradient(135deg,#FF6B00,#F97316);width:100%}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(255,107,0,.3)}
+.btn-secondary{background:rgba(255,255,255,.08);width:100%}
+.btn-secondary:hover{background:rgba(255,255,255,.12)}
+.btn-sm{padding:8px 16px;font-size:13px;border-radius:8px}
+.btn-danger{background:rgba(239,68,68,.15);color:#F87171;border:1px solid rgba(239,68,68,.3)}
+.btn-danger:hover{background:rgba(239,68,68,.25)}
+.divider{display:flex;align-items:center;gap:16px;margin:20px 0}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.08)}
+.divider span{font-size:12px;color:#475569}
+
+/* ===== Control Screen Top Bar ===== */
+.top-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 0;margin-bottom:20px;flex-wrap:wrap;
+}
+.top-info{display:flex;align-items:center;gap:10px}
+.top-room{
+  padding:6px 14px;background:rgba(255,255,255,.06);border-radius:8px;
+  font-size:14px;font-weight:700;color:#FF6B00;font-family:monospace;letter-spacing:1px;
+}
+.top-op{font-size:13px;color:#94A3B8}
+.top-actions{display:flex;gap:8px}
+.top-status{display:flex;align-items:center;gap:6px;font-size:12px}
+.ws-dot{width:7px;height:7px;border-radius:50%}
+.ws-dot.on{background:#22C55E}
+.ws-dot.off{background:#EF4444}
+
+/* ===== Control Grid ===== */
+.ctrl-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:20px;
+  margin-bottom:20px;
+}
+@media(max-width:640px){.ctrl-grid{grid-template-columns:1fr}}
+
+/* ===== Section Card ===== */
+.section{
+  background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);
+  border-radius:14px;padding:24px;
+}
+.section-title{
+  font-size:13px;font-weight:700;color:#64748B;text-transform:uppercase;
+  letter-spacing:1px;margin-bottom:14px;
+}
+
+/* ===== Person List ===== */
+.person-list{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto}
+.person-item{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.02);transition:.15s;
+}
+.person-item:hover{border-color:rgba(255,255,255,.12)}
+.person-item.current{border-color:#FF6B00;background:rgba(255,107,0,.08)}
+.person-info{flex:1;overflow:hidden}
+.person-name{font-size:15px;font-weight:700;color:#fff}
+.person-title{font-size:12px;color:#94A3B8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.person-actions{display:flex;gap:4px;flex-shrink:0}
+.person-order{font-size:12px;color:#475569;margin-right:4px;min-width:16px;text-align:center}
+.btn-icon{
+  width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
+  color:#94A3B8;cursor:pointer;font-size:14px;transition:.15s;
+}
+.btn-icon:hover{color:#fff;border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.06)}
+.btn-icon.danger:hover{color:#F87171;border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.15)}
+.btn-icon.current{color:#FF6B00;border-color:rgba(255,107,0,.4);background:rgba(255,107,0,.1)}
+
+/* ===== Add Person Form ===== */
+.add-form{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.add-form input{
+  padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(0,0,0,.25);color:#fff;font-size:14px;outline:none;
+}
+.add-form input:focus{border-color:#FF6B00}
+
+/* ===== Template Select ===== */
+.template-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.template-btn{
+  padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);color:#94A3B8;font-size:13px;font-weight:600;
+  cursor:pointer;transition:.15s;text-align:center;
+}
+.template-btn:hover{border-color:rgba(255,255,255,.15);color:#fff}
+.template-btn.active{border-color:#FF6B00;background:rgba(255,107,0,.12);color:#FF6B00}
+
+/* ===== Display Toggle ===== */
+.display-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.02);margin-top:12px;
+}
+.toggle-label{font-size:15px;font-weight:700}
+.toggle-btn{
+  padding:10px 28px;border-radius:10px;border:none;font-size:15px;font-weight:700;
+  cursor:pointer;transition:.2s;color:#fff;
+}
+.toggle-btn.showing{background:rgba(34,197,94,.2);color:#22C55E;border:1px solid rgba(34,197,94,.4)}
+.toggle-btn.hidden{background:rgba(255,255,255,.05);color:#64748B;border:1px solid rgba(255,255,255,.08)}
+
+/* ===== Share & Links ===== */
+.link-list{display:flex;flex-direction:column;gap:10px}
+.link-item{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.link-label{font-size:12px;color:#64748B;white-space:nowrap}
+.link-url{
+  flex:1;font-size:12px;color:#94A3B8;font-family:monospace;
+  background:rgba(0,0,0,.3);padding:8px 12px;border-radius:6px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.btn-copy{
+  padding:6px 12px;border-radius:6px;border:1px solid rgba(255,107,0,.3);
+  background:rgba(255,107,0,.1);color:#FF6B00;font-size:12px;font-weight:600;
+  cursor:pointer;transition:.15s;white-space:nowrap;
+}
+.btn-copy:hover{background:rgba(255,107,0,.2)}
+.btn-copy.copied{background:rgba(34,197,94,.2);border-color:rgba(34,197,94,.4);color:#22C55E}
+
+/* ===== Keyboard Hints ===== */
+.kbd-hints{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px}
+.kbd-hint{font-size:11px;color:#475569}
+.kbd-hint kbd{
+  padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);font-family:inherit;
+}
+
+/* ===== Toast ===== */
+.toast{
+  position:fixed;bottom:32px;left:50%;transform:translateX(-50%);
+  padding:10px 24px;border-radius:10px;background:#1E293B;color:#fff;
+  font-size:14px;font-weight:600;z-index:9999;animation:toastIn .3s ease;
+  border:1px solid rgba(255,255,255,.1);
+}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ===== Modal ===== */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  display:flex;align-items:center;justify-content:center;z-index:100;
+}
+.modal{
+  background:#1E293B;border:1px solid rgba(255,255,255,.1);border-radius:16px;
+  padding:28px;max-width:400px;width:90%;
+}
+.modal h3{font-size:18px;margin-bottom:14px;color:#fff}
+.modal input{
+  width:100%;padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(0,0,0,.3);color:#fff;font-size:14px;outline:none;margin-bottom:10px;
+}
+.modal input:focus{border-color:#FF6B00}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+</style>
+</head>
+<body>
+
+<!-- ==================== ENTRY SCREEN ==================== -->
+<div id="entry-screen">
+  <div class="entry-logo">
+    <h1><span>光为云</span>直播字幕条</h1>
+    <p class="sub">人名条 · 职务显示 · 多模板预设 · 透明网页供 vMix/OBS 加载</p>
+  </div>
+  <div class="entry-box">
+    <label>输入您的姓名</label>
+    <input type="text" id="entry-name" placeholder="例如：张三" maxlength="20" autocomplete="off">
+    <p class="hint">姓名将显示在操作日志中，方便多人协作辨识</p>
+    <button class="btn btn-primary" id="btn-create">开始使用</button>
+    <div class="divider"><span>或</span></div>
+    <label>加入已有房间</label>
+    <input type="text" id="entry-room" placeholder="6位房间号，例如 abc3xy" maxlength="6" autocomplete="off" style="font-family:monospace;letter-spacing:2px;text-transform:lowercase">
+    <button class="btn btn-secondary" id="btn-join">加入房间 →</button>
+  </div>
+</div>
+
+<!-- ==================== CONTROL SCREEN ==================== -->
+<div id="control-screen" class="hidden">
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="top-info">
+      <div class="top-room" id="top-room">------</div>
+      <div class="top-op" id="top-operator">---</div>
+    </div>
+    <div class="top-actions">
+      <div class="top-status"><span class="ws-dot off" id="ws-dot"></span><span id="ws-text">离线</span></div>
+      <button class="btn btn-sm btn-secondary" id="btn-share">分享</button>
+      <button class="btn btn-sm btn-secondary" id="btn-leave">退出</button>
+    </div>
+  </div>
+
+  <!-- Control Grid -->
+  <div class="ctrl-grid">
+    <!-- Left: Person Management -->
+    <div class="section">
+      <div class="section-title">人员管理</div>
+      <!-- Add Form -->
+      <div class="add-form">
+        <input type="text" id="new-name" placeholder="姓名" maxlength="20" autocomplete="off">
+        <input type="text" id="new-title1" placeholder="职务 / 身份 1" maxlength="30" autocomplete="off">
+        <input type="text" id="new-title2" placeholder="职务 / 身份 2（可留空）" maxlength="30" autocomplete="off">
+        <button class="btn btn-primary" id="btn-add-person" style="width:100%">添加人员</button>
+      </div>
+      <!-- Person List -->
+      <div class="person-list" id="person-list">
+        <p style="font-size:13px;color:#475569;text-align:center;padding:20px">暂无人员，请添加</p>
+      </div>
+    </div>
+
+    <!-- Right: Template & Display Control -->
+    <div>
+      <div class="section" style="margin-bottom:12px">
+        <div class="section-title">模板预设</div>
+        <div class="template-grid" id="template-grid">
+          <button class="template-btn active" data-tpl="A">A 紧凑横排</button>
+          <button class="template-btn" data-tpl="B">B 标准上下</button>
+          <button class="template-btn" data-tpl="C">C 宽松折行</button>
+          <button class="template-btn" data-tpl="D">D 社交型</button>
+          <button class="template-btn" data-tpl="E">E 多身份</button>
+          <button class="template-btn" data-tpl="F">F 极简</button>
+        </div>
+      </div>
+
+      <div class="section" style="margin-bottom:12px">
+        <div class="section-title">显示控制</div>
+        <div class="display-toggle">
+          <span class="toggle-label" id="display-status-label">字幕条：隐藏</span>
+          <button class="toggle-btn hidden" id="btn-toggle-display">显示</button>
+        </div>
+        <p style="font-size:11px;color:#475569;margin-top:10px;text-align:center">
+          快捷键：<kbd style="padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">Ctrl+↑</kbd> 显示 ·
+          <kbd style="padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">Ctrl+↓</kbd> 隐藏 ·
+          <kbd style="padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">←</kbd><kbd style="padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">→</kbd> 切换
+        </p>
+      </div>
+
+      <div class="section">
+        <div class="section-title">复制链接</div>
+        <div class="link-list">
+          <div class="link-item">
+            <span class="link-label">透明网页</span>
+            <span class="link-url" id="link-view">--</span>
+            <button class="btn-copy" onclick="copyLink('view')">复制</button>
+          </div>
+          <div class="link-item">
+            <span class="link-label">操控台</span>
+            <span class="link-url" id="link-admin">--</span>
+            <button class="btn-copy" onclick="copyLink('admin')">复制</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== GLOBAL STATE ====================
+let roomId = '';
+let operator = null;
+let ws = null;
+let state = null;
+
+const BASE = location.origin;
+
+// ==================== URL PARSE ====================
+(function(){
+  const p = new URLSearchParams(location.search);
+  roomId = p.get('room') || '';
+  const opId = p.get('op') || '';
+  const opName = p.get('name') || '';
+
+  if (roomId) {
+    operator = { id: opId, name: opName || '操作员' };
+    showControlScreen();
+  } else {
+    document.getElementById('entry-screen').classList.remove('hidden');
+  }
+})();
+
+// ==================== ENTRY ====================
+document.getElementById('btn-create').addEventListener('click', async () => {
+  const name = document.getElementById('entry-name').value.trim();
+  if (!name) return toast('请输入您的姓名');
+  try {
+    const r = await fetch('/namebar/api/room/create', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name })
+    });
+    const d = await r.json();
+    if (d.success) {
+      operator = d.operator;
+      roomId = d.roomId;
+      history.replaceState(null,'',`/admin.html?room=${roomId}&op=${operator.id}&name=${encodeURIComponent(operator.name)}`);
+      showControlScreen();
+    } else {
+      toast(d.error || '创建失败');
+    }
+  } catch(e) { toast('网络错误'); }
+});
+
+document.getElementById('btn-join').addEventListener('click', async () => {
+  const name = document.getElementById('entry-name').value.trim();
+  const rid = document.getElementById('entry-room').value.trim().toLowerCase();
+  if (!name) return toast('请输入您的姓名');
+  if (!rid || rid.length !== 6) return toast('请输入正确的6位房间号');
+  try {
+    const r = await fetch('/namebar/api/room/join', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, roomId: rid })
+    });
+    const d = await r.json();
+    if (d.success) {
+      operator = d.operator;
+      roomId = rid;
+      history.replaceState(null,'',`/admin.html?room=${roomId}&op=${operator.id}&name=${encodeURIComponent(operator.name)}`);
+      showControlScreen();
+    } else {
+      toast(d.error || '加入失败');
+    }
+  } catch(e) { toast('网络错误'); }
+});
+
+// Enter key on name input
+document.getElementById('entry-name').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btn-create').click();
+});
+
+// ==================== CONTROL SCREEN ====================
+function showControlScreen(){
+  document.getElementById('entry-screen').classList.add('hidden');
+  document.getElementById('control-screen').classList.remove('hidden');
+
+  document.getElementById('top-room').textContent = roomId;
+  document.getElementById('top-operator').textContent = operator.name + ' · 记分员';
+  updateLinks();
+
+  connectWS();
+}
+
+function connectWS(){
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${proto}//${location.host}/namebar/ws`;
+
+  ws = new WebSocket(wsUrl);
+  ws.onopen = () => {
+    document.getElementById('ws-dot').className = 'ws-dot on';
+    document.getElementById('ws-text').textContent = '在线';
+    ws.send(JSON.stringify({ type:'join', roomId, operatorId: operator.id }));
+  };
+  ws.onclose = () => {
+    document.getElementById('ws-dot').className = 'ws-dot off';
+    document.getElementById('ws-text').textContent = '离线';
+    setTimeout(connectWS, 3000);
+  };
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'state') {
+        state = msg.data;
+        applyState();
+      }
+    } catch(ex) {}
+  };
+}
+
+function applyState(){
+  if (!state) return;
+
+  // Update display toggle
+  const btn = document.getElementById('btn-toggle-display');
+  const statusLabel = document.getElementById('display-status-label');
+  if (state.visible) {
+    btn.textContent = '隐藏';
+    btn.className = 'toggle-btn showing';
+    statusLabel.textContent = '字幕条：显示中';
+  } else {
+    btn.textContent = '显示';
+    btn.className = 'toggle-btn hidden';
+    statusLabel.textContent = '字幕条：隐藏';
+  }
+
+  // Update template buttons
+  document.querySelectorAll('.template-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tpl === state.currentTemplate);
+  });
+
+  // Render person list
+  renderPersonList();
+}
+
+function renderPersonList(){
+  const container = document.getElementById('person-list');
+  if (!state || !state.persons || state.persons.length === 0) {
+    container.innerHTML = '<p style="font-size:13px;color:#475569;text-align:center;padding:20px">暂无人员，请添加</p>';
+    return;
+  }
+
+  container.innerHTML = state.persons.map((p, i) => {
+    const isCurrent = i === state.currentIndex;
+    const titles = [p.title, p.title2].filter(Boolean).join(' · ');
+    return `<div class="person-item${isCurrent?' current':''}">
+      <span class="person-order">${String(i+1).padStart(2,'0')}</span>
+      <div class="person-info">
+        <div class="person-name">${escHtml(p.name)}</div>
+        <div class="person-title">${escHtml(titles || '未设置职务')}</div>
+      </div>
+      <div class="person-actions">
+        <button class="btn-icon ${isCurrent?'current':''}" onclick="selectPerson(${i})" title="设为当前">▶</button>
+        <button class="btn-icon danger" onclick="deletePerson(${i})" title="删除">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ==================== ACTIONS ====================
+function selectPerson(idx){
+  if (!state) return;
+  if (idx < 0 || idx >= state.persons.length) return;
+  state.currentIndex = (state.currentIndex === idx) ? -1 : idx; // toggle
+  sendUpdate();
+  applyState();
+}
+
+function deletePerson(idx){
+  if (!state) return;
+  state.persons.splice(idx, 1);
+  if (state.currentIndex >= state.persons.length) state.currentIndex = state.persons.length - 1;
+  if (state.persons.length === 0) state.currentIndex = -1;
+  sendUpdate();
+  applyState();
+}
+
+document.getElementById('btn-add-person').addEventListener('click', () => {
+  const name = document.getElementById('new-name').value.trim();
+  const title = document.getElementById('new-title1').value.trim();
+  const title2 = document.getElementById('new-title2').value.trim();
+  if (!name) return toast('请输入姓名');
+  if (!state) return;
+  state.persons.push({ id: Date.now().toString(36), name, title, title2: title2 || '' });
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-title1').value = '';
+  document.getElementById('new-title2').value = '';
+  sendUpdate();
+  applyState();
+});
+
+// Template
+document.querySelectorAll('.template-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!state) return;
+    state.currentTemplate = btn.dataset.tpl;
+    sendUpdate();
+    applyState();
+  });
+});
+
+// Display Toggle
+document.getElementById('btn-toggle-display').addEventListener('click', () => {
+  if (!state) return;
+  state.visible = !state.visible;
+  sendUpdate();
+  applyState();
+});
+
+// Share
+document.getElementById('btn-share').addEventListener('click', () => {
+  const adminLink = document.getElementById('link-admin').textContent;
+  const viewLink = document.getElementById('link-view').textContent;
+  const text = `【光为云直播字幕条】\n房号：${roomId}\n操控台：${adminLink}\n透明网页（vMix/OBS）：${viewLink}`;
+  copyToClipboard(text).then(() => toast('分享信息已复制到剪贴板'));
+});
+
+// Leave
+document.getElementById('btn-leave').addEventListener('click', () => {
+  if (confirm('确定退出当前房间？')) {
+    if (ws) ws.close();
+    history.replaceState(null, '', '/admin.html');
+    location.reload();
+  }
+});
+
+// ==================== KEYBOARD ====================
+document.addEventListener('keydown', (e) => {
+  if (!state || document.activeElement.tagName === 'INPUT') return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const dir = e.key === 'ArrowRight' ? 1 : -1;
+    if (state.persons.length === 0) return;
+    if (state.currentIndex < 0) {
+      state.currentIndex = 0;
+    } else {
+      state.currentIndex = (state.currentIndex + dir + state.persons.length) % state.persons.length;
+    }
+    sendUpdate();
+    applyState();
+  }
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.ctrlKey) {
+    e.preventDefault();
+    state.visible = e.key === 'ArrowUp';
+    sendUpdate();
+    applyState();
+  }
+});
+
+// ==================== HELPERS ====================
+function sendUpdate(){
+  if (!ws || ws.readyState !== 1 || !state) return;
+  ws.send(JSON.stringify({ type:'update', roomId, data: state }));
+}
+
+function updateLinks(){
+  document.getElementById('link-view').textContent = `${BASE}/view.html?room=${roomId}`;
+  document.getElementById('link-admin').textContent = `${BASE}/admin.html?room=${roomId}`;
+}
+
+function copyLink(type){
+  const el = document.getElementById('link-' + type);
+  copyToClipboard(el.textContent).then(() => toast('已复制'));
+}
+
+function copyToClipboard(text){
+  try {
+    return navigator.clipboard.writeText(text);
+  } catch(e) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+}
+
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(() => t.remove(), 300); }, 2000);
+}
+</script>
+</body>
+</html>

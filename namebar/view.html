@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>直播字幕条 — 透明网页</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  width:1920px;height:1080px;overflow:hidden;
+  background:transparent!important;
+}
+
+/* ===== Container ===== */
+#namebar{
+  position:fixed;
+  left:160px;bottom:170px;
+  opacity:0;transform:translateX(-60px);
+  transition:opacity .5s cubic-bezier(.22,1,.36,1),transform .5s cubic-bezier(.22,1,.36,1);
+  pointer-events:none;
+}
+#namebar.show{opacity:1;transform:translateX(0)}
+#namebar.hide{opacity:0;transform:translateX(-60px)}
+
+/* ===== Base Inner ===== */
+.nb{
+  position:relative;padding:18px 32px 14px 28px;display:inline-block;
+  background:rgba(0,0,0,.72);backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,.12);border-radius:0 12px 12px 0;
+}
+.nb-line{
+  position:absolute;left:0;top:6px;bottom:6px;width:4px;border-radius:2px;
+  background:linear-gradient(180deg,#6366F1,#06B6D4);
+}
+.nb-name{
+  display:block;font-size:56px;font-weight:700;color:#fff;
+  text-shadow:0 0 30px rgba(99,102,241,.5);
+  line-height:1.2;white-space:nowrap;
+}
+.nb-title{
+  display:block;font-size:26px;font-weight:400;color:#A5B4FC;
+  margin-top:6px;line-height:1.4;max-width:800px;
+  white-space:normal;word-break:break-word;
+}
+.nb-title2{
+  display:block;font-size:22px;font-weight:400;color:rgba(255,255,255,.55);
+  margin-top:2px;line-height:1.4;max-width:800px;
+}
+.nb-glow{
+  display:block;margin-top:10px;
+  width:200px;height:2px;border-radius:1px;
+  background:linear-gradient(90deg,#6366F1,transparent);
+}
+
+/* ===== Sweep Animation ===== */
+.nb-sweep{
+  position:absolute;left:-100%;top:0;width:60%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.1),transparent);
+  pointer-events:none;
+}
+.nb.sweep .nb-sweep{animation:sweep .6s ease-out 80ms forwards}
+@keyframes sweep{to{left:120%}}
+
+/* ===== Template A: 紧凑横排 ===== */
+.nb-a .nb-row{display:flex;align-items:center;gap:10px}
+.nb-a .nb-name{font-size:36px;display:inline}
+.nb-a .nb-divider{font-size:24px;color:rgba(255,255,255,.3);margin:0 2px}
+.nb-a .nb-title{font-size:26px;display:inline;margin:0}
+.nb-a .nb-title2{display:none}
+
+/* ===== Template B: 标准上下 ===== */
+/* Default — no extra styles needed */
+
+/* ===== Template C: 宽松折行 ===== */
+.nb-c .nb-name{font-size:60px}
+.nb-c .nb-title{font-size:24px;max-width:1000px}
+.nb-c .nb-title2{font-size:20px;max-width:1000px}
+
+/* ===== Template D: 社交型 ===== */
+.nb-d{padding:16px 28px}
+.nb-d .nb-row{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.nb-d .nb-name{font-size:42px;display:inline}
+.nb-d .nb-at{font-size:22px;color:rgba(255,255,255,.45);margin-left:4px}
+.nb-d .nb-title{font-size:20px;color:rgba(255,255,255,.5)}
+.nb-d .nb-title2{font-size:18px;color:rgba(255,255,255,.4)}
+
+/* ===== Template E: 多身份 ===== */
+.nb-e .nb-name{font-size:52px}
+.nb-e .nb-title{font-size:24px;max-width:850px}
+.nb-e .nb-title2{font-size:22px;max-width:850px;color:#94A3B8;margin-top:4px}
+.nb-e .nb-title br,.nb-e .nb-title2 br{line-height:2.2}
+
+/* ===== Template F: 极简 ===== */
+.nb-f{padding:14px 28px;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);border-radius:0 8px 8px 0}
+.nb-f .nb-name{font-size:40px;display:inline;text-shadow:0 0 15px rgba(255,255,255,.3)}
+.nb-f .nb-title{font-size:20px;display:inline;margin-left:14px;color:rgba(255,255,255,.6)}
+.nb-f .nb-title2{display:none}
+.nb-f .nb-glow{display:none}
+.nb-f .nb-line{width:3px}
+</style>
+</head>
+<body>
+
+<div id="namebar">
+  <div class="nb nb-b" id="nb-inner">
+    <div class="nb-line"></div>
+    <span class="nb-name" id="nbName">--</span>
+    <span class="nb-title" id="nbTitle"></span>
+    <span class="nb-title2" id="nbTitle2"></span>
+    <span class="nb-glow"></span>
+    <div class="nb-sweep"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const bar   = document.getElementById('namebar');
+  const inner = document.getElementById('nb-inner');
+  const elName  = document.getElementById('nbName');
+  const elTitle = document.getElementById('nbTitle');
+  const elTitle2 = document.getElementById('nbTitle2');
+
+  let currentVisible = false;
+  let lastPersonKey = '';
+
+  function applyState(s) {
+    const persons = s.persons || [];
+    const idx = s.currentIndex;
+    const tpl = s.currentTemplate || 'B';
+
+    // Template class
+    const tplClass = 'nb nb-' + tpl.toLowerCase();
+    if (inner.className !== tplClass) {
+      inner.className = tplClass;
+    }
+
+    // Render person
+    if (idx >= 0 && idx < persons.length) {
+      const p = persons[idx];
+      const key = p.name + '|' + p.title + '|' + p.title2 + '|' + idx;
+      
+      elName.textContent = p.name || '';
+      elTitle.textContent = p.title || '';
+      elTitle2.textContent = p.title2 || '';
+
+      // Show if changed
+      if (key !== lastPersonKey) {
+        lastPersonKey = key;
+        showBar();
+      }
+    }
+
+    // Visibility
+    if (s.visible && !currentVisible) {
+      showBar();
+    } else if (!s.visible && currentVisible) {
+      hideBar();
+    }
+  }
+
+  function showBar() {
+    bar.classList.remove('hide');
+    bar.classList.add('show');
+    inner.classList.remove('sweep');
+    void inner.offsetWidth;
+    inner.classList.add('sweep');
+    currentVisible = true;
+  }
+
+  function hideBar() {
+    bar.classList.remove('show');
+    bar.classList.add('hide');
+    currentVisible = false;
+  }
+
+  // ===== WebSocket =====
+  const roomId = new URLSearchParams(location.search).get('room') || '';
+  if (!roomId) {
+    elName.textContent = '缺少房间号';
+    return;
+  }
+
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const WS_URL = proto + '//' + location.host + '/namebar/ws';
+  let ws;
+
+  function connect() {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type:'join', roomId }));
+    };
+    ws.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      if (msg.type === 'state') applyState(msg.data);
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+
+  // ===== Fallback: HTTP polling (every 1s) =====
+  setInterval(async () => {
+    if (ws && ws.readyState === 1) return; // WS active
+    try {
+      const r = await fetch('/namebar/api/state/' + roomId);
+      const s = await r.json();
+      applyState(s);
+    } catch {}
+  }, 1000);
+})();
+</script>
+</body>
+</html>
