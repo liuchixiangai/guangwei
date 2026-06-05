@@ -336,7 +336,7 @@ document.getElementById('btn-create').addEventListener('click', async () => {
     if (d.success) {
       operator = d.operator;
       if (!roomId) roomId = d.roomId;
-      history.replaceState(null,'',`/admin.html?room=${roomId}&name=${encodeURIComponent(operator.name)}`);
+      history.replaceState(null,'',`/namebar/admin.html?room=${roomId}&name=${encodeURIComponent(operator.name)}`);
       showControlScreen();
     } else {
       toast(d.error || '操作失败');
@@ -498,33 +498,13 @@ document.getElementById('btn-share').addEventListener('click', () => {
 document.getElementById('btn-leave').addEventListener('click', () => {
   if (confirm('确定退出当前房间？')) {
     if (ws) ws.close();
-    history.replaceState(null, '', '/admin.html');
+    history.replaceState(null, '', '/namebar/admin.html');
     location.reload();
   }
 });
 
 // ==================== KEYBOARD ====================
-document.addEventListener('keydown', (e) => {
-  if (!state || document.activeElement.tagName === 'INPUT') return;
-  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-    e.preventDefault();
-    const dir = e.key === 'ArrowRight' ? 1 : -1;
-    if (state.persons.length === 0) return;
-    if (state.currentIndex < 0) {
-      state.currentIndex = 0;
-    } else {
-      state.currentIndex = (state.currentIndex + dir + state.persons.length) % state.persons.length;
-    }
-    sendUpdate();
-    applyState();
-  }
-  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.ctrlKey) {
-    e.preventDefault();
-    state.visible = e.key === 'ArrowUp';
-    sendUpdate();
-    applyState();
-  }
-});
+// No keyboard shortcuts — use buttons only
 
 // ==================== HELPERS ====================
 function sendUpdate(){
@@ -533,8 +513,8 @@ function sendUpdate(){
 }
 
 function updateLinks(){
-  document.getElementById('link-view').textContent = `${BASE}/view.html?room=${roomId}`;
-  document.getElementById('link-admin').textContent = `${BASE}/admin.html?room=${roomId}`;
+  document.getElementById('link-view').textContent = `${BASE}/namebar/view.html?room=${roomId}`;
+  document.getElementById('link-admin').textContent = `${BASE}/namebar/admin.html?room=${roomId}`;
 }
 
 function copyLink(type){
