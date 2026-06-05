@@ -90,7 +90,7 @@ wss.on('connection', (ws) => {
         const roomId = clientInfo.roomId;
         if (!rooms.has(roomId)) return;
         const state = rooms.get(roomId);
-        if (state.roomToken && clientInfo.roomToken !== state.roomToken) return;        const state = rooms.get(roomId);
+        if (state.roomToken && clientInfo.roomToken !== state.roomToken) return;
         const data = sanitizeState(msg.data || {});
         // 计时器控制字段单独处理（不在白名单内）
         const timerRunningChanged = msg.data && msg.data.timerRunning !== undefined && msg.data.timerRunning !== state.timerRunning;
