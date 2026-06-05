@@ -1,20 +1,23 @@
 /**
- * server.js - 光为云直播字幕条 v2.1（持久化+配色版）
- * 对齐篮球足球：SQLite快照、12小时持久化、防断电
+ * server.js - 光为云直播字幕条 v2.2（安全加固+token鉴权）
  */
+const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const db = require('./db');
 
-const PORT = 3003;
+const PORT = process.env.PORT || 3003;
 const app = express();
 const server = http.createServer(app);
 
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
+
 // 安全：阻止敏感文件被静态下载
 app.use((req, res, next) => {
   if (/\.(db|sqlite|sqlite3|json)$/i.test(req.path)) return res.status(403).send('Forbidden');
+  if (/(\.db|\.sqlite)-/.test(req.path)) return res.status(403).send('Forbidden');
+  if (/\.db-(wal|shm|journal)$/i.test(req.path)) return res.status(403).send('Forbidden');
   next();
 });
 app.use(express.static(__dirname));
@@ -23,7 +26,7 @@ app.use(express.static(__dirname));
 app.get('/', (req, res) => res.redirect('/admin.html'));
 
 // ========== WebSocket ==========
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, maxPayload: 65536 });
 const clients = new Map();
 
 function broadcastToRoom(roomId, msg, excludeWs) {
@@ -37,23 +40,24 @@ function broadcastToRoom(roomId, msg, excludeWs) {
 }
 
 wss.on('connection', (ws) => {
-  let clientInfo = { roomId: null, operatorId: null };
+  let clientInfo = { roomId: null, roomToken: null, operatorId: null };
 
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
-
-      if (msg.type === 'ping') {
-        ws.send(JSON.stringify({ type: 'pong' }));
-        return;
-      }
+      if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong' })); return; }
 
       if (msg.type === 'join') {
+        const state = getRoom(msg.roomId);
         clientInfo.roomId = msg.roomId;
+        clientInfo.roomToken = msg.roomToken || null;
         clientInfo.operatorId = msg.operatorId || null;
         clients.set(ws, clientInfo);
-        const state = getRoom(msg.roomId);
-        ws.send(JSON.stringify({ type: 'state', data: state }));
+
+        // 读操作不需要token，返回不带token的状态
+        const publicState = { ...state };
+        delete publicState.roomToken;
+        ws.send(JSON.stringify({ type: 'state', data: publicState }));
         return;
       }
 
@@ -61,62 +65,67 @@ wss.on('connection', (ws) => {
         const roomId = clientInfo.roomId;
         if (!rooms.has(roomId)) return;
         const state = rooms.get(roomId);
-        const data = sanitizeState(msg.data || {});
+
+        // 写操作必须验证token
+        if (state.roomToken && clientInfo.roomToken !== state.roomToken) return;
+
+        const data = validateAndSanitize(msg.data || {});
         Object.assign(state, data);
         db.saveRoomSnapshot(roomId, state);
-        broadcastToRoom(roomId, { type: 'state', data: state }, ws);
-        // 广播操作日志
+
+        const publicState = { ...state };
+        delete publicState.roomToken;
+        broadcastToRoom(roomId, { type: 'state', data: publicState }, ws);
+
         if (msg.action) {
-          const opName = String(msg.operatorName || '').slice(0, 50);
-          const action = String(msg.action || '').slice(0, 100);
-          const detail = String(msg.detail || '').slice(0, 200);
           broadcastToRoom(roomId, {
             type: 'op_log',
-            data: { ts: Date.now(), operatorName: opName, action, detail }
+            data: { ts: Date.now(), operatorName: String(msg.operatorName || '').slice(0, 50), action: String(msg.action || '').slice(0, 100), detail: String(msg.detail || '').slice(0, 200) }
           });
         }
       }
     } catch (e) {
-      console.error('[WS msg error]', e.message);
+      console.error('[WS error]', e.message);
     }
   });
 
-  ws.on('close', () => {
-    clients.delete(ws);
-  });
+  ws.on('close', () => clients.delete(ws));
 });
 
 // ========== 多房间状态 ==========
 const rooms = new Map();
 
-// 安全：状态字段白名单
-const STATE_WHITELIST = [
-  'persons', 'currentIndex', 'currentTemplate', 'visible',
-  'colorScheme', 'barBg', 'barBd', 'textColor', 'accentColor',
-  'fontSize', 'position'
-];
+const VALID_COLORS = ['red','orange','yellow','green','cyan','blue','purple'];
+const VALID_TEMPLATES = ['A','B','C','D','E','F'];
+const VALID_FONTS = ['small','normal','large'];
+const VALID_POSITIONS = ['bottom-left','bottom-center','bottom-right','top-center'];
+const MAX_PERSONS = 50;
 
-function sanitizeState(data) {
+function validateAndSanitize(data) {
   const clean = {};
-  for (const key of STATE_WHITELIST) {
-    if (key in data) clean[key] = data[key];
+  if (Array.isArray(data.persons)) {
+    clean.persons = data.persons.slice(0, MAX_PERSONS).map(p => ({
+      id: String(p.id || '').slice(0, 20),
+      name: String(p.name || '').slice(0, 20),
+      title: String(p.title || '').slice(0, 40),
+      title2: String(p.title2 || '').slice(0, 40)
+    }));
   }
+  if (typeof data.currentIndex === 'number') clean.currentIndex = Math.max(-1, Math.min(data.currentIndex, (clean.persons || data.persons || []).length - 1));
+  if (data.currentTemplate && VALID_TEMPLATES.includes(data.currentTemplate)) clean.currentTemplate = data.currentTemplate;
+  if (typeof data.visible === 'boolean') clean.visible = data.visible;
+  if (data.colorScheme && VALID_COLORS.includes(data.colorScheme)) clean.colorScheme = data.colorScheme;
+  if (typeof data.fontSize === 'string' && VALID_FONTS.includes(data.fontSize)) clean.fontSize = data.fontSize;
+  if (typeof data.position === 'string' && VALID_POSITIONS.includes(data.position)) clean.position = data.position;
   return clean;
 }
 
 function createRoomState() {
   return {
-    persons: [],
-    currentIndex: -1,
-    currentTemplate: 'A',
-    visible: true,        // 默认显示字幕
-    colorScheme: 'blue',  // 赤橙黄绿青蓝紫之一
-    barBg: 'rgba(0,0,0,0.72)',
-    barBd: 'rgba(255,255,255,0.15)',
-    textColor: '#ffffff',
-    accentColor: '#FF6B00',
-    fontSize: 'normal',
-    position: 'bottom-left',
+    persons: [], currentIndex: -1, currentTemplate: 'A',
+    visible: true, colorScheme: 'blue',
+    fontSize: 'normal', position: 'bottom-left',
+    roomToken: crypto.randomBytes(12).toString('hex')
   };
 }
 
@@ -129,7 +138,8 @@ function getRoom(roomId) {
       delete snapshot._snapshotAge;
       if (!Array.isArray(snapshot.persons)) snapshot.persons = [];
       if (typeof snapshot.visible !== 'boolean') snapshot.visible = true;
-      if (!snapshot.colorScheme) snapshot.colorScheme = 'blue';
+      if (!snapshot.colorScheme || !VALID_COLORS.includes(snapshot.colorScheme)) snapshot.colorScheme = 'blue';
+      if (!snapshot.roomToken) snapshot.roomToken = crypto.randomBytes(12).toString('hex');
       rooms.set(roomId, snapshot);
     } else {
       rooms.set(roomId, createRoomState());
@@ -143,45 +153,71 @@ function roomExists(roomId) {
   return db.loadRoomSnapshot(roomId) !== null;
 }
 
+// ========== Token 验证中间件 ==========
+function requireToken(req, res, next) {
+  const roomId = req.params.roomId || req.body.roomId;
+  if (!roomId) return res.status(400).json({ error: '缺少房间号' });
+  if (!rooms.has(roomId)) return res.status(404).json({ error: '房间不存在' });
+  const state = rooms.get(roomId);
+  if (state.roomToken && req.query.token !== state.roomToken && req.body.token !== state.roomToken) {
+    return res.status(403).json({ error: '无权限' });
+  }
+  next();
+}
+
 // ========== 房间ID生成 ==========
 const CHARSET = 'abcdefghijkmnpqrstuvwxyz23456789';
 function genRoomId() {
-  let id = '';
-  for (let i = 0; i < 6; i++) id += CHARSET[Math.floor(Math.random() * CHARSET.length)];
-  return id;
+  for (let retry = 0; retry < 10; retry++) {
+    let id = '';
+    for (let i = 0; i < 6; i++) id += CHARSET[Math.floor(Math.random() * CHARSET.length)];
+    if (!roomExists(id)) return id;
+  }
+  return 'error'; // should never happen
 }
 
-// ========== API 路由 ==========
-app.post('/api/room/create', (req, res) => {
-  const { name } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error: '请填写姓名' });
-  const roomId = genRoomId();
-  const operator = { id: Date.now().toString(36), name: name.trim(), role: '主控' };
-  const state = getRoom(roomId);
-  db.saveRoomSnapshot(roomId, state);
-  res.json({ success: true, roomId, operator });
-});
+// ========== API 路由（双挂载：根路径 + /namebar 前缀） ==========
+function mountNamebarRoutes(prefix) {
+  const p = prefix || '';
 
-app.post('/api/room/join', (req, res) => {
-  const { name, roomId } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error: '请填写姓名' });
-  if (!roomId) return res.status(400).json({ error: '缺少房间号' });
-  if (!roomExists(roomId)) return res.status(404).json({ error: '房间不存在' });
-  const operator = { id: Date.now().toString(36), name: name.trim(), role: '副控' };
-  res.json({ success: true, operator });
-});
+  app.post(p + '/api/room/create', (req, res) => {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: '请填写姓名' });
+    const roomId = genRoomId();
+    const state = getRoom(roomId);
+    db.saveRoomSnapshot(roomId, state);
+    const operator = { id: crypto.randomUUID(), name: name.trim().slice(0, 20), role: '主控' };
+    res.json({ success: true, roomId, roomToken: state.roomToken, operator });
+  });
 
-app.get('/api/state/:roomId', (req, res) => {
-  if (!roomExists(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
-  res.json(getRoom(req.params.roomId));
-});
+  app.post(p + '/api/room/join', (req, res) => {
+    const { name, roomId } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: '请填写姓名' });
+    if (!roomId) return res.status(400).json({ error: '缺少房间号' });
+    if (!roomExists(roomId)) return res.status(404).json({ error: '房间不存在' });
+    const operator = { id: crypto.randomUUID(), name: name.trim().slice(0, 20), role: '副控' };
+    res.json({ success: true, operator });
+  });
 
-// ========== 定期清理旧快照（每小时） ==========
+  app.get(p + '/api/state/:roomId', (req, res) => {
+    if (!roomExists(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
+    const state = getRoom(req.params.roomId);
+    const publicState = { ...state };
+    delete publicState.roomToken;
+    res.json(publicState);
+  });
+}
+
+// 同时挂载根路径和 /namebar 前缀，兼容直连和Nginx代理两种部署
+mountNamebarRoutes('');
+mountNamebarRoutes('/namebar');
+
+// ========== 定期清理旧快照 ==========
 setInterval(() => {
   db.cleanOldSnapshots(12 * 60 * 60 * 1000);
 }, 60 * 60 * 1000);
 
 // ========== 启动 ==========
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('[Namebar] 光为云直播字幕条 v2.1 运行于端口 ' + PORT);
+  console.log('[Namebar] 光为云直播字幕条 v2.2 running on ' + PORT);
 });

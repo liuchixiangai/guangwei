@@ -1,21 +1,23 @@
 /**
- * server.js - 光为云足球记分系统 v5.1（安全加固版）
+ * server.js - 光为云足球记分系统 v5.2（安全加固+token鉴权）
  * 极简目录：静态文件与 server.js 同级，express.static(__dirname)
  */
+const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
 const db = require('./db');
 
-const PORT = 3004;
+const PORT = process.env.PORT || 3004;
 const app = express();
 const server = http.createServer(app);
 
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
 // 安全：阻止敏感文件被静态下载
 app.use((req, res, next) => {
-  if (/\.(db|sqlite|sqlite3)$/i.test(req.path)) return res.status(403).send('Forbidden');
+  if (/\.(db|sqlite|sqlite3|json)$/i.test(req.path)) return res.status(403).send('Forbidden');
+  if (/\.db-(wal|shm|journal)$/i.test(req.path)) return res.status(403).send('Forbidden');
   next();
 });
 app.use(express.static(__dirname));
@@ -76,7 +78,7 @@ function broadcastAll(msg) {
 }
 
 wss.on('connection', (ws) => {
-  let clientInfo = { roomId: null, operatorId: null };
+  let clientInfo = { roomId: null, roomToken: null, operatorId: null };
 
   ws.on('message', (raw) => {
     try {
@@ -89,10 +91,13 @@ wss.on('connection', (ws) => {
 
       if (msg.type === 'join') {
         clientInfo.roomId = msg.roomId;
+        clientInfo.roomToken = msg.roomToken || null;
         clientInfo.operatorId = msg.operatorId || null;
         clients.set(ws, clientInfo);
         const state = getRoom(msg.roomId);
-        ws.send(JSON.stringify({ type: 'state', data: state }));
+        const publicState = { ...state };
+        delete publicState.roomToken;
+        ws.send(JSON.stringify({ type: 'state', data: publicState }));
         ws.send(JSON.stringify({ type: 'active_operators', data: db.getActiveOperators() }));
         const history = db.getOperations(msg.roomId, 50);
         if (history.length) {
@@ -115,10 +120,14 @@ wss.on('connection', (ws) => {
         const roomId = clientInfo.roomId;
         if (!rooms.has(roomId)) return;
         const state = rooms.get(roomId);
+        // 写操作校验token
+        if (state.roomToken && clientInfo.roomToken !== state.roomToken) return;
         const data = sanitizeState(msg.data || {});
         Object.assign(state, data);
         db.saveRoomSnapshot(roomId, state);
-        broadcastToRoom(roomId, { type: 'state', data: state }, ws);
+        const publicState = { ...state };
+        delete publicState.roomToken;
+        broadcastToRoom(roomId, { type: 'state', data: publicState }, ws);
         if (msg.action) {
           const name = String(msg.operatorName || '').slice(0, 50);
           const action = String(msg.action || '').slice(0, 100);
@@ -149,7 +158,8 @@ function createRoomState() {
     overlayVisible: true,
     homeColor: '#FF6B00', awayColor: '#0057A8',
     barBg: 'rgba(15,20,40,0.82)',
-    show: { mainTimer: true, injuryTime: true, quarter: true }
+    show: { mainTimer: true, injuryTime: true, quarter: true },
+    roomToken: crypto.randomBytes(12).toString('hex')
   };
 }
 
@@ -172,6 +182,7 @@ function getRoom(roomId) {
       if (typeof snapshot.injuryDisplay === 'undefined') snapshot.injuryDisplay = '';
       if (typeof snapshot.matchEnded === 'undefined') snapshot.matchEnded = false;
       if (!snapshot.show.quarter) snapshot.show.quarter = true;
+      if (!snapshot.roomToken) snapshot.roomToken = crypto.randomBytes(12).toString('hex');
       delete snapshot.shotClock; delete snapshot.shotClockRunning;
       delete snapshot.shotClockSeconds; delete snapshot.injuryTime;
       rooms.set(roomId, snapshot);
@@ -269,7 +280,7 @@ app.post('/api/room/create', (req, res) => {
     const op = db.registerOperator(name.trim(), roomId);
     getRoom(roomId);
     broadcastAll({ type: 'active_operators', data: db.getActiveOperators() });
-    res.json({ success: true, roomId, operator: op });
+    res.json({ success: true, roomId, roomToken: getRoom(roomId).roomToken, operator: op });
   } catch (e) {
     res.status(400).json({ error: e.message || '创建失败' });
   }

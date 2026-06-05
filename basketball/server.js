@@ -1,22 +1,23 @@
 /**
- * server.js - 光为云篮球记分系统 v3.0（重建版）
+ * server.js - 光为云篮球记分系统 v3.1（安全加固+token鉴权）
  * 极简目录：静态文件与 server.js 同级，express.static(__dirname)
  */
+const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
 const db = require('./db');
 
-const PORT = 3002;
+const PORT = process.env.PORT || 3002;
 const app = express();
 const server = http.createServer(app);
 
-// ★ 关键：静态文件与 server.js 同级，不再用 public/ 子目录
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
 // 安全：阻止敏感文件被静态下载
 app.use((req, res, next) => {
-  if (/\.(db|sqlite|sqlite3)$/i.test(req.path)) return res.status(403).send('Forbidden');
+  if (/\.(db|sqlite|sqlite3|json)$/i.test(req.path)) return res.status(403).send('Forbidden');
+  if (/\.db-(wal|shm|journal)$/i.test(req.path)) return res.status(403).send('Forbidden');
   next();
 });
 app.use(express.static(__dirname));
@@ -45,7 +46,7 @@ function broadcastAll(msg) {
 }
 
 wss.on('connection', (ws) => {
-  let clientInfo = { roomId: null, operatorId: null };
+  let clientInfo = { roomId: null, roomToken: null, operatorId: null };
 
   ws.on('message', (raw) => {
     try {
@@ -58,10 +59,13 @@ wss.on('connection', (ws) => {
 
       if (msg.type === 'join') {
         clientInfo.roomId = msg.roomId;
+        clientInfo.roomToken = msg.roomToken || null;
         clientInfo.operatorId = msg.operatorId || null;
         clients.set(ws, clientInfo);
         const state = getRoom(msg.roomId);
-        ws.send(JSON.stringify({ type: 'state', data: state }));
+        const publicState = { ...state };
+        delete publicState.roomToken;
+        ws.send(JSON.stringify({ type: 'state', data: publicState }));
         // 发送活跃操作员
         ws.send(JSON.stringify({ type: 'active_operators', data: db.getActiveOperators() }));
         // 发送历史操作日志
@@ -84,8 +88,9 @@ wss.on('connection', (ws) => {
 
       if (msg.type === 'update' && clientInfo.roomId) {
         const roomId = clientInfo.roomId;
-        if (!rooms.has(roomId)) return; // 房间不存在，拒绝
+        if (!rooms.has(roomId)) return;
         const state = rooms.get(roomId);
+        if (state.roomToken && clientInfo.roomToken !== state.roomToken) return;        const state = rooms.get(roomId);
         const data = sanitizeState(msg.data || {});
         // 计时器控制字段单独处理（不在白名单内）
         const timerRunningChanged = msg.data && msg.data.timerRunning !== undefined && msg.data.timerRunning !== state.timerRunning;
@@ -101,7 +106,7 @@ wss.on('connection', (ws) => {
           else stopShotClock(roomId);
         }
         db.saveRoomSnapshot(roomId, state);
-        broadcastToRoom(roomId, { type: 'state', data: state }, ws);
+        broadcastToRoom(roomId, { type: 'state', data: publicState(state) }, ws);
         if (msg.action) {
           const sanitizedAction = String(msg.action || '').slice(0, 100);
           const sanitizedName = String(msg.operatorName || '').slice(0, 50);
@@ -146,6 +151,12 @@ function sanitizeState(data) {
   return clean;
 }
 
+function publicState(state) {
+  const s = { ...state };
+  delete s.roomToken;
+  return s;
+}
+
 function createRoomState() {
   return {
     eventName: '篮球联赛',
@@ -165,7 +176,8 @@ function createRoomState() {
     homeColor: '#FF6B00',
     awayColor: '#0057A8',
     barBg: 'rgba(15,20,40,0.82)',
-    show: { mainTimer: true, shotClock: true }
+    show: { mainTimer: true, shotClock: true },
+    roomToken: crypto.randomBytes(12).toString('hex')
   };
 }
 
@@ -180,6 +192,7 @@ function getRoom(roomId) {
       if (!snapshot.show) snapshot.show = { mainTimer: true, shotClock: true };
       if (typeof snapshot.timerSeconds !== 'number') snapshot.timerSeconds = 600;
       if (typeof snapshot.shotClockSeconds !== 'number') snapshot.shotClockSeconds = 24;
+      if (!snapshot.roomToken) snapshot.roomToken = crypto.randomBytes(12).toString('hex');
       rooms.set(roomId, snapshot);
     } else {
       rooms.set(roomId, createRoomState());
@@ -313,7 +326,7 @@ app.post('/api/room/create', (req, res) => {
     const op = db.registerOperator(name.trim(), roomId);
     getRoom(roomId);
     broadcastAll({ type: 'active_operators', data: db.getActiveOperators() });
-    res.json({ success: true, roomId, operator: op });
+    res.json({ success: true, roomId, roomToken: getRoom(roomId).roomToken, operator: op });
   } catch (e) {
     res.status(400).json({ error: e.message || '创建失败' });
   }

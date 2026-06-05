@@ -331,6 +331,7 @@ body{
 <script>
 // ==================== GLOBAL STATE ====================
 let roomId = '';
+let roomToken = '';
 let operator = null;
 let ws = null;
 let state = null;
@@ -341,10 +342,10 @@ const BASE = location.origin;
 (function(){
   const p = new URLSearchParams(location.search);
   roomId = p.get('room') || '';
+  roomToken = p.get('token') || '';
   const opName = p.get('name') || '';
 
   if (roomId && opName) {
-    // 有房间+姓名 → 直接进入操控台
     operator = { id: '', name: decodeURIComponent(opName) };
     showControlScreen();
   } else {
@@ -378,7 +379,11 @@ document.getElementById('btn-create').addEventListener('click', async () => {
     if (d.success) {
       operator = d.operator;
       if (!roomId) roomId = d.roomId;
-      history.replaceState(null,'',`/namebar/admin.html?room=${roomId}&name=${encodeURIComponent(operator.name)}`);
+      if (d.roomToken) roomToken = d.roomToken;
+      var params = 'room=' + roomId;
+      if (roomToken) params += '&token=' + roomToken;
+      params += '&name=' + encodeURIComponent(operator.name);
+      history.replaceState(null, '', '/namebar/admin.html?' + params);
       showControlScreen();
     } else {
       toast(d.error || '操作失败');
@@ -411,7 +416,7 @@ function connectWS(){
   ws.onopen = () => {
     document.getElementById('ws-dot').className = 'ws-dot on';
     document.getElementById('ws-text').textContent = '在线';
-    ws.send(JSON.stringify({ type:'join', roomId, operatorId: operator.id }));
+    ws.send(JSON.stringify({ type:'join', roomId, roomToken, operatorId: operator.id }));
   };
   ws.onclose = () => {
     document.getElementById('ws-dot').className = 'ws-dot off';
@@ -596,8 +601,9 @@ function appendLog(entry){
 }
 
 function updateLinks(){
-  document.getElementById('link-view').textContent = `${BASE}/namebar/view.html?room=${roomId}`;
-  document.getElementById('link-admin').textContent = `${BASE}/namebar/admin.html?room=${roomId}`;
+  var tokenParam = roomToken ? '&token=' + roomToken : '';
+  document.getElementById('link-view').textContent = BASE + '/namebar/view.html?room=' + roomId + tokenParam;
+  document.getElementById('link-admin').textContent = BASE + '/namebar/admin.html?room=' + roomId + tokenParam;
 }
 
 function copyLink(type){
