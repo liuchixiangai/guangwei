@@ -1,5 +1,5 @@
 /**
- * server.js - 光为云足球记分系统 v5.0（正计时+分段封顶+补时文案）
+ * server.js - 光为云足球记分系统 v5.1（安全加固版）
  * 极简目录：静态文件与 server.js 同级，express.static(__dirname)
  */
 const express = require('express');
@@ -8,21 +8,26 @@ const { WebSocketServer } = require('ws');
 const path = require('path');
 const db = require('./db');
 
-const PORT = 3001;
+const PORT = 3004;
 const app = express();
 const server = http.createServer(app);
 
 app.use(express.json());
+// 安全：阻止敏感文件被静态下载
+app.use((req, res, next) => {
+  if (/\.(db|sqlite|sqlite3)$/i.test(req.path)) return res.status(403).send('Forbidden');
+  next();
+});
 app.use(express.static(__dirname));
 
 // ========== 足球分段封顶常量 ==========
-const HALF_FIRST_CAP = 45 * 60;   // 上半场封顶 45:00 = 2700秒
-const HALF_SECOND_CAP = 90 * 60;  // 下半场封顶 90:00 = 5400秒（含上半场45分钟）
+const HALF_FIRST_CAP = 45 * 60;
+const HALF_SECOND_CAP = 90 * 60;
 
 function getCap(quarter) {
-  if (quarter === 1) return HALF_FIRST_CAP;   // 上半场封顶45:00
-  if (quarter === 3) return HALF_SECOND_CAP;  // 下半场封顶90:00
-  return Infinity; // 中场休息/加时/点球无封顶
+  if (quarter === 1) return HALF_FIRST_CAP;
+  if (quarter === 3) return HALF_SECOND_CAP;
+  return Infinity;
 }
 
 function formatTime(totalSec) {
@@ -30,6 +35,23 @@ function formatTime(totalSec) {
   const m = Math.floor((totalSec % 3600) / 60).toString().padStart(2, '0');
   const sec = (totalSec % 60).toString().padStart(2, '0');
   return h > 0 ? h + ':' + m + ':' + sec : m + ':' + sec;
+}
+
+// ========== 安全：字段白名单 ==========
+const STATE_WHITELIST = [
+  'eventName', 'homeTeam', 'awayTeam',
+  'homeScore', 'awayScore', 'quarter',
+  'homeColor', 'awayColor', 'barBg',
+  'overlayVisible', 'show',
+  'injuryDisplay', 'matchEnded'
+];
+
+function sanitizeState(data) {
+  const clean = {};
+  for (const key of STATE_WHITELIST) {
+    if (key in data) clean[key] = data[key];
+  }
+  return clean;
 }
 
 // ========== WebSocket ==========
@@ -41,9 +63,7 @@ function broadcastToRoom(roomId, msg, excludeWs) {
   wss.clients.forEach(ws => {
     if (ws.readyState === 1) {
       const info = clients.get(ws);
-      if (info && info.roomId === roomId && ws !== excludeWs) {
-        ws.send(json);
-      }
+      if (info && info.roomId === roomId && ws !== excludeWs) ws.send(json);
     }
   });
 }
@@ -74,7 +94,6 @@ wss.on('connection', (ws) => {
         const state = getRoom(msg.roomId);
         ws.send(JSON.stringify({ type: 'state', data: state }));
         ws.send(JSON.stringify({ type: 'active_operators', data: db.getActiveOperators() }));
-        // 发送历史操作日志
         const history = db.getOperations(msg.roomId, 50);
         if (history.length) {
           history.reverse().forEach(op => {
@@ -94,22 +113,18 @@ wss.on('connection', (ws) => {
 
       if (msg.type === 'update' && clientInfo.roomId) {
         const roomId = clientInfo.roomId;
-        const state = getRoom(roomId);
-        if (msg.data) Object.assign(state, msg.data);
+        if (!rooms.has(roomId)) return;
+        const state = rooms.get(roomId);
+        const data = sanitizeState(msg.data || {});
+        Object.assign(state, data);
         db.saveRoomSnapshot(roomId, state);
         broadcastToRoom(roomId, { type: 'state', data: state }, ws);
         if (msg.action) {
-          db.logOperation(roomId, clientInfo.operatorId, msg.operatorName || '', msg.action, msg.detail || '');
-          // 广播操作日志给房间内所有人（包括操作者）
-          broadcastToRoom(roomId, {
-            type: 'op_log',
-            data: {
-              ts: Date.now(),
-              operatorName: msg.operatorName || '',
-              action: msg.action,
-              detail: msg.detail || ''
-            }
-          });
+          const name = String(msg.operatorName || '').slice(0, 50);
+          const action = String(msg.action || '').slice(0, 100);
+          const detail = String(msg.detail || '').slice(0, 200);
+          db.logOperation(roomId, clientInfo.operatorId, name, action, detail);
+          broadcastToRoom(roomId, { type: 'op_log', data: { ts: Date.now(), operatorName: name, action, detail } });
         }
       }
     } catch (e) {
@@ -125,25 +140,22 @@ const rooms = new Map();
 
 function createRoomState() {
   return {
-    eventName: '足球联赛',
-    homeTeam: '主队',
-    awayTeam: '客队',
-    homeScore: 0,
-    awayScore: 0,
-    quarter: 1,            // 1=上半场 2=中场休息 3=下半场 4=加时赛 5=点球大战
+    eventName: '足球联赛', homeTeam: '主队', awayTeam: '客队',
+    homeScore: 0, awayScore: 0,
+    quarter: 1,
     quarterNames: ['', '上半场', '中场休息', '下半场', '加时赛', '点球大战'],
-    timeLeft: '00:00',
-    timerRunning: false,
-    timerSeconds: 0,
-    timerCountUp: true,
-    injuryDisplay: '',     // 补时文案，如 '+3'、'+5'，空字符串=不显示
-    matchEnded: false,     // 比赛是否已结束
+    timeLeft: '00:00', timerRunning: false, timerSeconds: 0, timerCountUp: true,
+    injuryDisplay: '', matchEnded: false,
     overlayVisible: true,
-    homeColor: '#FF6B00',
-    awayColor: '#0057A8',
+    homeColor: '#FF6B00', awayColor: '#0057A8',
     barBg: 'rgba(15,20,40,0.82)',
     show: { mainTimer: true, injuryTime: true, quarter: true }
   };
+}
+
+function roomExists(roomId) {
+  if (rooms.has(roomId)) return true;
+  return db.loadRoomSnapshot(roomId) !== null;
 }
 
 function getRoom(roomId) {
@@ -155,22 +167,13 @@ function getRoom(roomId) {
       delete snapshot._snapshotAge;
       if (snapshot.timerRunning) snapshot.timerRunning = false;
       if (!snapshot.show) snapshot.show = { mainTimer: true, injuryTime: true };
-      // 迁移：旧快照无 timerCountUp 标记
-      if (!snapshot.timerCountUp) {
-        snapshot.timerSeconds = 0;
-        snapshot.timeLeft = '00:00';
-      }
+      if (!snapshot.timerCountUp) { snapshot.timerSeconds = 0; snapshot.timeLeft = '00:00'; }
       snapshot.timerCountUp = true;
-      // 新字段兼容
       if (typeof snapshot.injuryDisplay === 'undefined') snapshot.injuryDisplay = '';
       if (typeof snapshot.matchEnded === 'undefined') snapshot.matchEnded = false;
-      if (typeof snapshot.injuryTime === 'undefined') snapshot.injuryTime = 0;
       if (!snapshot.show.quarter) snapshot.show.quarter = true;
-      // 删除旧字段
-      delete snapshot.shotClock;
-      delete snapshot.shotClockRunning;
-      delete snapshot.shotClockSeconds;
-      delete snapshot.injuryTime;
+      delete snapshot.shotClock; delete snapshot.shotClockRunning;
+      delete snapshot.shotClockSeconds; delete snapshot.injuryTime;
       rooms.set(roomId, snapshot);
     } else {
       rooms.set(roomId, createRoomState());
@@ -180,7 +183,7 @@ function getRoom(roomId) {
   return rooms.get(roomId);
 }
 
-// ========== 每房间计时器（正计时+分段封顶） ==========
+// ========== 每房间计时器 ==========
 const roomTimers = new Map();
 
 function initRoomTimer(roomId) {
@@ -195,13 +198,12 @@ function startMainTimer(roomId) {
   const rt = roomTimers.get(roomId) || {};
   if (rt.mainInterval) return;
   const state = getRoom(roomId);
-  if (state.matchEnded) return; // 比赛已结束，禁止启动
+  if (state.matchEnded) return;
   state.timerRunning = true;
   rt.mainInterval = setInterval(() => {
     const s = getRoom(roomId);
     const cap = getCap(s.quarter);
     if (s.timerSeconds >= cap) {
-      // 到达封顶，自动停止计时（不算结束比赛）
       stopMainTimer(roomId);
       broadcastToRoom(roomId, { type: 'state', data: s });
       db.saveRoomSnapshot(roomId, s);
@@ -217,10 +219,7 @@ function startMainTimer(roomId) {
 
 function stopMainTimer(roomId) {
   const rt = roomTimers.get(roomId);
-  if (rt && rt.mainInterval) {
-    clearInterval(rt.mainInterval);
-    rt.mainInterval = null;
-  }
+  if (rt && rt.mainInterval) { clearInterval(rt.mainInterval); rt.mainInterval = null; }
   const state = getRoom(roomId);
   state.timerRunning = false;
 }
@@ -280,8 +279,8 @@ app.post('/api/room/join', (req, res) => {
   const { name, roomId } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: '请填写姓名' });
   if (!roomId) return res.status(400).json({ error: '缺少房间号' });
+  if (!roomExists(roomId)) return res.status(404).json({ error: '房间不存在' });
   try {
-    getRoom(roomId);
     const op = db.registerOperator(name.trim(), roomId);
     broadcastAll({ type: 'active_operators', data: db.getActiveOperators() });
     res.json({ success: true, operator: op });
@@ -295,17 +294,17 @@ app.get('/api/operators', (req, res) => {
 });
 
 app.get('/api/state/:roomId', (req, res) => {
+  if (!roomExists(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
   res.json(getRoom(req.params.roomId));
 });
 
 app.post('/api/state/:roomId', (req, res) => {
   const roomId = req.params.roomId;
-  const state = getRoom(roomId);
-  const update = req.body;
-
-  if (update.timerRunning === true && !state.timerRunning) startMainTimer(roomId);
-  if (update.timerRunning === false && state.timerRunning) stopMainTimer(roomId);
-
+  if (!rooms.has(roomId)) return res.status(404).json({ error: '房间不存在' });
+  const state = rooms.get(roomId);
+  const update = sanitizeState(req.body);
+  if (req.body.timerRunning === true && !state.timerRunning) startMainTimer(roomId);
+  if (req.body.timerRunning === false && state.timerRunning) stopMainTimer(roomId);
   Object.assign(state, update);
   db.saveRoomSnapshot(roomId, state);
   broadcastToRoom(roomId, { type: 'state', data: state });
@@ -318,11 +317,13 @@ app.get('/api/operations/:roomId', (req, res) => {
 
 // 计时器控制
 app.post('/api/timer/:roomId/start', (req, res) => {
+  if (!rooms.has(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
   startMainTimer(req.params.roomId);
   res.json({ success: true });
 });
 
 app.post('/api/timer/:roomId/stop', (req, res) => {
+  if (!rooms.has(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
   stopMainTimer(req.params.roomId);
   res.json({ success: true });
 });
@@ -338,21 +339,20 @@ app.post('/api/timer/:roomId/reset', (req, res) => {
   res.json({ success: true });
 });
 
-// 下半场切换：一键把时间设为 45:00 并暂停
+// 下半场切换（修复：quarter应设为3而非2）
 app.post('/api/timer/:roomId/secondHalf', (req, res) => {
   stopMainTimer(req.params.roomId);
   const state = getRoom(req.params.roomId);
   state.timerSeconds = HALF_FIRST_CAP;
   state.timeLeft = '45:00';
   state.timerRunning = false;
-  state.quarter = 2;
+  state.quarter = 3; // 下半场=3（此前错误设为2/中场休息）
   state.injuryDisplay = '';
   db.saveRoomSnapshot(req.params.roomId, state);
   broadcastToRoom(req.params.roomId, { type: 'state', data: state });
   res.json({ success: true });
 });
 
-// 结束比赛
 app.post('/api/timer/:roomId/endMatch', (req, res) => {
   stopMainTimer(req.params.roomId);
   const state = getRoom(req.params.roomId);
@@ -363,18 +363,13 @@ app.post('/api/timer/:roomId/endMatch', (req, res) => {
   res.json({ success: true });
 });
 
-// 重新开始（重置比赛）
 app.post('/api/timer/:roomId/newMatch', (req, res) => {
   stopMainTimer(req.params.roomId);
   const state = getRoom(req.params.roomId);
-  state.timerSeconds = 0;
-  state.timeLeft = '00:00';
-  state.timerRunning = false;
-  state.matchEnded = false;
-  state.quarter = 1;
-  state.injuryDisplay = '';
-  state.homeScore = 0;
-  state.awayScore = 0;
+  state.timerSeconds = 0; state.timeLeft = '00:00';
+  state.timerRunning = false; state.matchEnded = false;
+  state.quarter = 1; state.injuryDisplay = '';
+  state.homeScore = 0; state.awayScore = 0;
   db.saveRoomSnapshot(req.params.roomId, state);
   broadcastToRoom(req.params.roomId, { type: 'state', data: state });
   res.json({ success: true });
@@ -386,7 +381,9 @@ function escXml(s) {
 }
 
 app.get('/xml/:roomId', (req, res) => {
-  const state = getRoom(req.params.roomId);
+  const rid = req.params.roomId;
+  if (!roomExists(rid)) return res.status(404).json({ error: '房间不存在' });
+  const state = getRoom(rid);
   const qNames = ['', '上半场', '中场休息', '下半场', '加时赛', '点球大战'];
   const periodName = qNames[state.quarter] || '上半场';
   const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<scoreboard>\n' +
@@ -398,7 +395,7 @@ app.get('/xml/:roomId', (req, res) => {
     '  <quarter>' + (state.quarter || 1) + '</quarter>\n' +
     '  <quarterName>' + escXml(periodName) + '</quarterName>\n' +
     '  <timeLeft>' + (state.timeLeft || '00:00') + '</timeLeft>\n' +
-    '  <injuryTime>' + (state.injuryTime || 0) + '</injuryTime>\n' +
+    '  <injuryTime>' + escXml(state.injuryDisplay || '') + '</injuryTime>\n' +
     '  <timerRunning>' + (!!state.timerRunning) + '</timerRunning>\n' +
     '  <homeColor>' + (state.homeColor || '#FF6B00') + '</homeColor>\n' +
     '  <awayColor>' + (state.awayColor || '#0057A8') + '</awayColor>\n' +
@@ -409,25 +406,20 @@ app.get('/xml/:roomId', (req, res) => {
   res.send(xml);
 });
 
-// ========== JSON 数据源 ==========
 app.get('/json/:roomId', (req, res) => {
-  const state = getRoom(req.params.roomId);
+  const rid = req.params.roomId;
+  if (!roomExists(rid)) return res.status(404).json({ error: '房间不存在' });
+  const state = getRoom(rid);
   const qNames = ['', '上半场', '中场休息', '下半场', '加时赛', '点球大战'];
-  const periodName = qNames[state.quarter] || '上半场';
   const jsonData = {
     eventName: state.eventName || '',
-    homeTeam: state.homeTeam || '',
-    awayTeam: state.awayTeam || '',
-    homeScore: state.homeScore || 0,
-    awayScore: state.awayScore || 0,
+    homeTeam: state.homeTeam || '', awayTeam: state.awayTeam || '',
+    homeScore: state.homeScore || 0, awayScore: state.awayScore || 0,
     quarter: state.quarter || 1,
-    quarterName: periodName,
-    timeLeft: state.timeLeft || '00:00',
-    timerRunning: !!state.timerRunning,
-    timerCountUp: true,
-    injuryTime: state.injuryTime || 0,
-    homeColor: state.homeColor || '#FF6B00',
-    awayColor: state.awayColor || '#0057A8',
+    quarterName: qNames[state.quarter] || '上半场',
+    timeLeft: state.timeLeft || '00:00', timerRunning: !!state.timerRunning, timerCountUp: true,
+    injuryTime: state.injuryDisplay || '',
+    homeColor: state.homeColor || '#FF6B00', awayColor: state.awayColor || '#0057A8',
   };
   res.set('Content-Type', 'application/json; charset=utf-8');
   res.set('Access-Control-Allow-Origin', '*');
@@ -437,5 +429,5 @@ app.get('/json/:roomId', (req, res) => {
 
 // ========== 启动 ==========
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('[Football] 光为云足球记分系统 v5.0 运行于端口 ' + PORT);
+  console.log('[Football] 光为云足球记分系统 v5.1 运行于端口 ' + PORT);
 });

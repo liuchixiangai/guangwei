@@ -14,6 +14,11 @@ const server = http.createServer(app);
 
 // ★ 关键：静态文件与 server.js 同级，不再用 public/ 子目录
 app.use(express.json());
+// 安全：阻止敏感文件被静态下载
+app.use((req, res, next) => {
+  if (/\.(db|sqlite|sqlite3)$/i.test(req.path)) return res.status(403).send('Forbidden');
+  next();
+});
 app.use(express.static(__dirname));
 
 // ========== WebSocket ==========
@@ -79,35 +84,36 @@ wss.on('connection', (ws) => {
 
       if (msg.type === 'update' && clientInfo.roomId) {
         const roomId = clientInfo.roomId;
-        const state = getRoom(roomId);
-        const data = msg.data || {};
-        // 在 Object.assign 之前检测计时器状态变化，避免被覆盖后无法触发
-        const timerRunningChanged = data.timerRunning !== undefined && data.timerRunning !== state.timerRunning;
-        const shotClockRunningChanged = data.shotClockRunning !== undefined && data.shotClockRunning !== state.shotClockRunning;
-        // 合并更新
+        if (!rooms.has(roomId)) return; // 房间不存在，拒绝
+        const state = rooms.get(roomId);
+        const data = sanitizeState(msg.data || {});
+        // 计时器控制字段单独处理（不在白名单内）
+        const timerRunningChanged = msg.data && msg.data.timerRunning !== undefined && msg.data.timerRunning !== state.timerRunning;
+        const shotClockRunningChanged = msg.data && msg.data.shotClockRunning !== undefined && msg.data.shotClockRunning !== state.shotClockRunning;
+        // 合并更新（仅白名单字段）
         Object.assign(state, data);
-        // 根据变化前检测的结果触发计时器
         if (timerRunningChanged) {
-          if (data.timerRunning) startMainTimer(roomId);
+          if (msg.data.timerRunning) startMainTimer(roomId);
           else stopMainTimer(roomId);
         }
         if (shotClockRunningChanged) {
-          if (data.shotClockRunning) startShotClock(roomId);
+          if (msg.data.shotClockRunning) startShotClock(roomId);
           else stopShotClock(roomId);
         }
         db.saveRoomSnapshot(roomId, state);
         broadcastToRoom(roomId, { type: 'state', data: state }, ws);
-        // 记录操作
         if (msg.action) {
-          db.logOperation(roomId, clientInfo.operatorId, msg.operatorName || '', msg.action, msg.detail || '');
-          // 广播操作日志给房间内所有人（包括操作者）
+          const sanitizedAction = String(msg.action || '').slice(0, 100);
+          const sanitizedName = String(msg.operatorName || '').slice(0, 50);
+          const sanitizedDetail = String(msg.detail || '').slice(0, 200);
+          db.logOperation(roomId, clientInfo.operatorId, sanitizedName, sanitizedAction, sanitizedDetail);
           broadcastToRoom(roomId, {
             type: 'op_log',
             data: {
               ts: Date.now(),
-              operatorName: msg.operatorName || '',
-              action: msg.action,
-              detail: msg.detail || ''
+              operatorName: sanitizedName,
+              action: sanitizedAction,
+              detail: sanitizedDetail
             }
           });
         }
@@ -124,6 +130,21 @@ wss.on('connection', (ws) => {
 
 // ========== 多房间状态 ==========
 const rooms = new Map();
+
+// 安全：状态字段白名单，防止客户端注入任意字段
+const STATE_WHITELIST = [
+  'eventName', 'homeTeam', 'awayTeam',
+  'homeScore', 'awayScore', 'quarter',
+  'homeColor', 'awayColor', 'barBg',
+  'overlayVisible', 'show'
+];
+function sanitizeState(data) {
+  const clean = {};
+  for (const key of STATE_WHITELIST) {
+    if (key in data) clean[key] = data[key];
+  }
+  return clean;
+}
 
 function createRoomState() {
   return {
@@ -166,6 +187,11 @@ function getRoom(roomId) {
     initRoomTimer(roomId);
   }
   return rooms.get(roomId);
+}
+
+function roomExists(roomId) {
+  if (rooms.has(roomId)) return true;
+  return db.loadRoomSnapshot(roomId) !== null;
 }
 
 // ========== 每房间计时器 ==========
@@ -297,9 +323,8 @@ app.post('/api/room/join', (req, res) => {
   const { name, roomId } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: '请填写姓名' });
   if (!roomId) return res.status(400).json({ error: '缺少房间号' });
+  if (!roomExists(roomId)) return res.status(404).json({ error: '房间不存在' });
   try {
-    // 确保房间存在
-    getRoom(roomId);
     const op = db.registerOperator(name.trim(), roomId);
     broadcastAll({ type: 'active_operators', data: db.getActiveOperators() });
     res.json({ success: true, operator: op });
@@ -313,20 +338,21 @@ app.get('/api/operators', (req, res) => {
 });
 
 app.get('/api/state/:roomId', (req, res) => {
-  const state = getRoom(req.params.roomId);
-  res.json(state);
+  if (!roomExists(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
+  res.json(getRoom(req.params.roomId));
 });
 
 app.post('/api/state/:roomId', (req, res) => {
   const roomId = req.params.roomId;
-  const state = getRoom(roomId);
-  const update = req.body;
+  if (!rooms.has(roomId)) return res.status(404).json({ error: '房间不存在' });
+  const state = rooms.get(roomId);
+  const update = sanitizeState(req.body);
 
   // 处理计时器
-  if (update.timerRunning === true && !state.timerRunning) startMainTimer(roomId);
-  if (update.timerRunning === false && state.timerRunning) stopMainTimer(roomId);
-  if (update.shotClockRunning === true && !state.shotClockRunning) startShotClock(roomId);
-  if (update.shotClockRunning === false && state.shotClockRunning) stopShotClock(roomId);
+  if (req.body.timerRunning === true && !state.timerRunning) startMainTimer(roomId);
+  if (req.body.timerRunning === false && state.timerRunning) stopMainTimer(roomId);
+  if (req.body.shotClockRunning === true && !state.shotClockRunning) startShotClock(roomId);
+  if (req.body.shotClockRunning === false && state.shotClockRunning) stopShotClock(roomId);
 
   Object.assign(state, update);
   db.saveRoomSnapshot(roomId, state);
@@ -389,7 +415,9 @@ function escXml(s) {
 }
 
 app.get('/xml/:roomId', (req, res) => {
-  const state = getRoom(req.params.roomId);
+  const rid = req.params.roomId;
+  if (!roomExists(rid)) return res.status(404).json({ error: '房间不存在' });
+  const state = getRoom(rid);
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <scoreboard>
   <eventName>${escXml(state.eventName || '')}</eventName>
@@ -413,7 +441,9 @@ app.get('/xml/:roomId', (req, res) => {
 
 // ========== JSON 数据源 ==========
 app.get('/json/:roomId', (req, res) => {
-  const state = getRoom(req.params.roomId);
+  const rid = req.params.roomId;
+  if (!roomExists(rid)) return res.status(404).json({ error: '房间不存在' });
+  const state = getRoom(rid);
   const jsonData = {
     eventName: state.eventName || '',
     homeTeam: state.homeTeam || '',

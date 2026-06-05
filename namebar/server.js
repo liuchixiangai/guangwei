@@ -11,6 +11,11 @@ const app = express();
 const server = http.createServer(app);
 
 app.use(express.json());
+// 安全：阻止敏感文件被静态下载
+app.use((req, res, next) => {
+  if (/\.(db|sqlite|sqlite3|json)$/i.test(req.path)) return res.status(403).send('Forbidden');
+  next();
+});
 app.use(express.static(__dirname));
 
 // 首页重定向
@@ -53,8 +58,9 @@ wss.on('connection', (ws) => {
 
       if (msg.type === 'update' && clientInfo.roomId) {
         const roomId = clientInfo.roomId;
-        const state = getRoom(roomId);
-        const data = msg.data || {};
+        if (!rooms.has(roomId)) return;
+        const state = rooms.get(roomId);
+        const data = sanitizeState(msg.data || {});
         Object.assign(state, data);
         broadcastToRoom(roomId, { type: 'state', data: state }, ws);
       }
@@ -70,6 +76,20 @@ wss.on('connection', (ws) => {
 
 // ========== 多房间状态 ==========
 const rooms = new Map();
+
+// 安全：状态字段白名单
+const STATE_WHITELIST = [
+  'persons', 'currentIndex', 'currentTemplate', 'visible',
+  'barBg', 'barBd', 'textColor', 'accentColor', 'fontSize', 'position'
+];
+
+function sanitizeState(data) {
+  const clean = {};
+  for (const key of STATE_WHITELIST) {
+    if (key in data) clean[key] = data[key];
+  }
+  return clean;
+}
 
 function createRoomState() {
   return {
@@ -94,6 +114,10 @@ function getRoom(roomId) {
   return rooms.get(roomId);
 }
 
+function roomExists(roomId) {
+  return rooms.has(roomId);
+}
+
 // ========== 房间ID生成 ==========
 const CHARSET = 'abcdefghijkmnpqrstuvwxyz23456789'; // 排除 0/O/1/l/I
 function genRoomId() {
@@ -116,13 +140,14 @@ app.post('/api/room/join', (req, res) => {
   const { name, roomId } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: '请填写姓名' });
   if (!roomId) return res.status(400).json({ error: '缺少房间号' });
-  getRoom(roomId);
+  if (!roomExists(roomId)) return res.status(404).json({ error: '房间不存在' });
   const operator = { id: Date.now().toString(36), name: name.trim(), role: '副控' };
   res.json({ success: true, operator });
 });
 
 app.get('/api/state/:roomId', (req, res) => {
-  res.json(getRoom(req.params.roomId));
+  if (!roomExists(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
+  res.json(rooms.get(req.params.roomId));
 });
 
 // ========== 启动 ==========
