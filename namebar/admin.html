@@ -201,10 +201,9 @@ body{
     <input type="text" id="entry-name" placeholder="例如：张三" maxlength="20" autocomplete="off">
     <p class="hint">姓名将显示在操作日志中，方便多人协作辨识</p>
     <button class="btn btn-primary" id="btn-create">开始使用</button>
-    <div class="divider"><span>或</span></div>
-    <label>加入已有房间</label>
-    <input type="text" id="entry-room" placeholder="6位房间号，例如 abc3xy" maxlength="6" autocomplete="off" style="font-family:monospace;letter-spacing:2px;text-transform:lowercase">
-    <button class="btn btn-secondary" id="btn-join">加入房间 →</button>
+    <p id="entry-room-row" style="display:none;font-size:12px;color:#64748B;margin-top:10px;text-align:center">
+      房间 <strong id="entry-room-display" style="color:#FF6B00;font-family:monospace"></strong>
+    </p>
   </div>
 </div>
 
@@ -300,13 +299,21 @@ const BASE = location.origin;
 (function(){
   const p = new URLSearchParams(location.search);
   roomId = p.get('room') || '';
-  const opId = p.get('op') || '';
   const opName = p.get('name') || '';
 
-  if (roomId) {
-    operator = { id: opId, name: opName || '操作员' };
+  if (roomId && opName) {
+    // 有房间+姓名 → 直接进入操控台
+    operator = { id: '', name: decodeURIComponent(opName) };
     showControlScreen();
   } else {
+    // 无房间 或 有房间无姓名 → 显示入口界面
+    const btn = document.getElementById('btn-create');
+    if (roomId) {
+      // 从分享链接进来的，显示"加入房间"模式
+      btn.textContent = '加入房间';
+      document.getElementById('entry-room-display').textContent = roomId;
+      document.getElementById('entry-room-row').style.display = 'block';
+    }
     document.getElementById('entry-screen').classList.remove('hidden');
   }
 })();
@@ -315,41 +322,24 @@ const BASE = location.origin;
 document.getElementById('btn-create').addEventListener('click', async () => {
   const name = document.getElementById('entry-name').value.trim();
   if (!name) return toast('请输入您的姓名');
-  try {
-    const r = await fetch('/namebar/api/room/create', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ name })
-    });
-    const d = await r.json();
-    if (d.success) {
-      operator = d.operator;
-      roomId = d.roomId;
-      history.replaceState(null,'',`/admin.html?room=${roomId}&op=${operator.id}&name=${encodeURIComponent(operator.name)}`);
-      showControlScreen();
-    } else {
-      toast(d.error || '创建失败');
-    }
-  } catch(e) { toast('网络错误'); }
-});
 
-document.getElementById('btn-join').addEventListener('click', async () => {
-  const name = document.getElementById('entry-name').value.trim();
-  const rid = document.getElementById('entry-room').value.trim().toLowerCase();
-  if (!name) return toast('请输入您的姓名');
-  if (!rid || rid.length !== 6) return toast('请输入正确的6位房间号');
+  // 根据是否有 roomId 决定创建还是加入
+  const apiPath = roomId ? '/namebar/api/room/join' : '/namebar/api/room/create';
+  const body = roomId ? { name, roomId } : { name };
+
   try {
-    const r = await fetch('/namebar/api/room/join', {
+    const r = await fetch(apiPath, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ name, roomId: rid })
+      body: JSON.stringify(body)
     });
     const d = await r.json();
     if (d.success) {
       operator = d.operator;
-      roomId = rid;
-      history.replaceState(null,'',`/admin.html?room=${roomId}&op=${operator.id}&name=${encodeURIComponent(operator.name)}`);
+      if (!roomId) roomId = d.roomId;
+      history.replaceState(null,'',`/admin.html?room=${roomId}&name=${encodeURIComponent(operator.name)}`);
       showControlScreen();
     } else {
-      toast(d.error || '加入失败');
+      toast(d.error || '操作失败');
     }
   } catch(e) { toast('网络错误'); }
 });
