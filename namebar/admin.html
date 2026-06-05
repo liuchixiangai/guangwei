@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
 <title>直播字幕条 — 光为云</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -121,6 +121,15 @@ body{
 }
 .template-btn:hover{border-color:rgba(255,255,255,.15);color:#fff}
 .template-btn.active{border-color:#FF6B00;background:rgba(255,107,0,.12);color:#FF6B00}
+
+/* ===== Color Scheme Picker ===== */
+.color-schemes{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.color-dot{
+  width:28px;height:28px;border-radius:50%;cursor:pointer;transition:.15s;
+  border:2px solid transparent;
+}
+.color-dot:hover{transform:scale(1.15)}
+.color-dot.active{border-color:#fff;box-shadow:0 0 10px currentColor}
 
 /* ===== Display Toggle ===== */
 .display-toggle{
@@ -261,6 +270,15 @@ body{
           <button class="template-btn" data-tpl="E">E 多身份</button>
           <button class="template-btn" data-tpl="F">F 极简</button>
         </div>
+        <div class="color-schemes" id="color-schemes">
+          <div class="color-dot" data-color="red" style="background:#EF4444" title="赤红"></div>
+          <div class="color-dot" data-color="orange" style="background:#F97316" title="橙"></div>
+          <div class="color-dot" data-color="yellow" style="background:#EAB308" title="黄"></div>
+          <div class="color-dot" data-color="green" style="background:#22C55E" title="绿"></div>
+          <div class="color-dot" data-color="cyan" style="background:#06B6D4" title="青"></div>
+          <div class="color-dot active" data-color="blue" style="background:#3B82F6" title="蓝"></div>
+          <div class="color-dot" data-color="purple" style="background:#8B5CF6" title="紫"></div>
+        </div>
       </div>
 
       <div class="section" style="margin-bottom:12px">
@@ -283,7 +301,7 @@ body{
             <button class="btn-copy" onclick="copyLink('view')">复制</button>
           </div>
           <div class="link-item">
-            <span class="link-label">操控台</span>
+            <span class="link-label">多人接力</span>
             <span class="link-url" id="link-admin">--</span>
             <button class="btn-copy" onclick="copyLink('admin')">复制</button>
           </div>
@@ -415,6 +433,10 @@ function applyState(){
   document.querySelectorAll('.template-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tpl === state.currentTemplate);
   });
+  // Update color scheme dots
+  document.querySelectorAll('.color-dot').forEach(d => {
+    d.classList.toggle('active', d.dataset.color === state.colorScheme);
+  });
 
   // Render person list
   renderPersonList();
@@ -481,6 +503,15 @@ document.querySelectorAll('.template-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (!state) return;
     state.currentTemplate = btn.dataset.tpl;
+    sendUpdate();
+    applyState();
+  });
+});
+// Color scheme
+document.querySelectorAll('.color-dot').forEach(dot => {
+  dot.addEventListener('click', () => {
+    if (!state) return;
+    state.colorScheme = dot.dataset.color;
     sendUpdate();
     applyState();
   });

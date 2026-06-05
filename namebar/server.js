@@ -1,10 +1,11 @@
 /**
- * server.js - 光为云直播字幕条 v2.0（房间系统重构版）
- * 对齐篮球足球：姓名+自动6位房间号+多人协作+透明网页
+ * server.js - 光为云直播字幕条 v2.1（持久化+配色版）
+ * 对齐篮球足球：SQLite快照、12小时持久化、防断电
  */
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
+const db = require('./db');
 
 const PORT = 3003;
 const app = express();
@@ -62,6 +63,7 @@ wss.on('connection', (ws) => {
         const state = rooms.get(roomId);
         const data = sanitizeState(msg.data || {});
         Object.assign(state, data);
+        db.saveRoomSnapshot(roomId, state);
         broadcastToRoom(roomId, { type: 'state', data: state }, ws);
       }
     } catch (e) {
@@ -80,7 +82,8 @@ const rooms = new Map();
 // 安全：状态字段白名单
 const STATE_WHITELIST = [
   'persons', 'currentIndex', 'currentTemplate', 'visible',
-  'barBg', 'barBd', 'textColor', 'accentColor', 'fontSize', 'position'
+  'colorScheme', 'barBg', 'barBd', 'textColor', 'accentColor',
+  'fontSize', 'position'
 ];
 
 function sanitizeState(data) {
@@ -96,30 +99,42 @@ function createRoomState() {
     persons: [],
     currentIndex: -1,
     currentTemplate: 'A',
-    visible: false,
-    // 自定义样式
+    visible: true,        // 默认显示字幕
+    colorScheme: 'blue',  // 赤橙黄绿青蓝紫之一
     barBg: 'rgba(0,0,0,0.72)',
     barBd: 'rgba(255,255,255,0.15)',
     textColor: '#ffffff',
     accentColor: '#FF6B00',
-    fontSize: 'normal', // small | normal | large
-    position: 'bottom-left', // bottom-left | bottom-center | bottom-right | top-center
+    fontSize: 'normal',
+    position: 'bottom-left',
   };
 }
 
 function getRoom(roomId) {
   if (!rooms.has(roomId)) {
-    rooms.set(roomId, createRoomState());
+    const snapshot = db.loadRoomSnapshot(roomId);
+    if (snapshot) {
+      const age = Math.round((snapshot._snapshotAge || 0) / 60000);
+      console.log('[Room ' + roomId + '] 恢复快照（' + age + '分钟前）');
+      delete snapshot._snapshotAge;
+      if (!Array.isArray(snapshot.persons)) snapshot.persons = [];
+      if (typeof snapshot.visible !== 'boolean') snapshot.visible = true;
+      if (!snapshot.colorScheme) snapshot.colorScheme = 'blue';
+      rooms.set(roomId, snapshot);
+    } else {
+      rooms.set(roomId, createRoomState());
+    }
   }
   return rooms.get(roomId);
 }
 
 function roomExists(roomId) {
-  return rooms.has(roomId);
+  if (rooms.has(roomId)) return true;
+  return db.loadRoomSnapshot(roomId) !== null;
 }
 
 // ========== 房间ID生成 ==========
-const CHARSET = 'abcdefghijkmnpqrstuvwxyz23456789'; // 排除 0/O/1/l/I
+const CHARSET = 'abcdefghijkmnpqrstuvwxyz23456789';
 function genRoomId() {
   let id = '';
   for (let i = 0; i < 6; i++) id += CHARSET[Math.floor(Math.random() * CHARSET.length)];
@@ -132,7 +147,8 @@ app.post('/api/room/create', (req, res) => {
   if (!name || !name.trim()) return res.status(400).json({ error: '请填写姓名' });
   const roomId = genRoomId();
   const operator = { id: Date.now().toString(36), name: name.trim(), role: '主控' };
-  getRoom(roomId);
+  const state = getRoom(roomId);
+  db.saveRoomSnapshot(roomId, state);
   res.json({ success: true, roomId, operator });
 });
 
@@ -147,10 +163,15 @@ app.post('/api/room/join', (req, res) => {
 
 app.get('/api/state/:roomId', (req, res) => {
   if (!roomExists(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
-  res.json(rooms.get(req.params.roomId));
+  res.json(getRoom(req.params.roomId));
 });
+
+// ========== 定期清理旧快照（每小时） ==========
+setInterval(() => {
+  db.cleanOldSnapshots(12 * 60 * 60 * 1000);
+}, 60 * 60 * 1000);
 
 // ========== 启动 ==========
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Namebar] 光为云直播字幕条 v2.0 运行于端口 ${PORT}`);
+  console.log('[Namebar] 光为云直播字幕条 v2.1 运行于端口 ' + PORT);
 });

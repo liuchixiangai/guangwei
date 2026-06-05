@@ -22,12 +22,57 @@ html,body{
 }
 .nb-line{
   position:absolute;left:0;top:8px;bottom:8px;width:4px;border-radius:2px;
-  background:linear-gradient(180deg,#6366F1,#06B6D4);
 }
-.nb-name{display:block;font-size:56px;font-weight:700;color:#fff;line-height:1.2;white-space:nowrap}
-.nb-title{display:block;font-size:26px;font-weight:400;color:#A5B4FC;margin-top:6px;line-height:1.4;max-width:800px;white-space:normal;word-break:break-word}
-.nb-title2{display:block;font-size:22px;font-weight:400;color:rgba(255,255,255,.6);margin-top:2px;line-height:1.4;max-width:800px}
-.nb-glow{display:block;margin-top:10px;width:200px;height:2px;border-radius:1px;background:linear-gradient(90deg,#6366F1,transparent)}
+.nb-name{display:block;font-size:56px;font-weight:700;line-height:1.2;white-space:nowrap}
+.nb-title{display:block;font-size:26px;font-weight:400;margin-top:6px;line-height:1.4;max-width:800px;white-space:normal;word-break:break-word}
+.nb-title2{display:block;font-size:22px;font-weight:400;margin-top:2px;line-height:1.4;max-width:800px}
+.nb-glow{display:block;margin-top:10px;width:200px;height:2px;border-radius:1px}
+
+/* ===== Color Schemes ===== */
+/* red 赤 */
+.scheme-red .nb-line{background:linear-gradient(180deg,#EF4444,#FCA5A5)}
+.scheme-red .nb-name{color:#FEE2E2}
+.scheme-red .nb-title{color:#FCA5A5}
+.scheme-red .nb-title2{color:rgba(252,165,165,.6)}
+.scheme-red .nb-glow{background:linear-gradient(90deg,#EF4444,transparent)}
+/* orange 橙 */
+.scheme-orange .nb-line{background:linear-gradient(180deg,#F97316,#FDBA74)}
+.scheme-orange .nb-name{color:#FFF7ED}
+.scheme-orange .nb-title{color:#FDBA74}
+.scheme-orange .nb-title2{color:rgba(253,186,116,.6)}
+.scheme-orange .nb-glow{background:linear-gradient(90deg,#F97316,transparent)}
+/* yellow 黄 */
+.scheme-yellow .nb-line{background:linear-gradient(180deg,#EAB308,#FDE047)}
+.scheme-yellow .nb-name{color:#FEFCE8}
+.scheme-yellow .nb-title{color:#FDE047}
+.scheme-yellow .nb-title2{color:rgba(253,224,71,.55)}
+.scheme-yellow .nb-glow{background:linear-gradient(90deg,#EAB308,transparent)}
+/* green 绿 */
+.scheme-green .nb-line{background:linear-gradient(180deg,#22C55E,#86EFAC)}
+.scheme-green .nb-name{color:#F0FDF4}
+.scheme-green .nb-title{color:#86EFAC}
+.scheme-green .nb-title2{color:rgba(134,239,172,.6)}
+.scheme-green .nb-glow{background:linear-gradient(90deg,#22C55E,transparent)}
+/* cyan 青 */
+.scheme-cyan .nb-line{background:linear-gradient(180deg,#06B6D4,#67E8F9)}
+.scheme-cyan .nb-name{color:#ECFEFF}
+.scheme-cyan .nb-title{color:#67E8F9}
+.scheme-cyan .nb-title2{color:rgba(103,232,249,.6)}
+.scheme-cyan .nb-glow{background:linear-gradient(90deg,#06B6D4,transparent)}
+/* blue 蓝 (default) */
+.scheme-blue .nb-line{background:linear-gradient(180deg,#3B82F6,#93C5FD)}
+.scheme-blue .nb-name{color:#EFF6FF}
+.scheme-blue .nb-title{color:#93C5FD}
+.scheme-blue .nb-title2{color:rgba(147,197,253,.6)}
+.scheme-blue .nb-glow{background:linear-gradient(90deg,#3B82F6,transparent)}
+/* purple 紫 */
+.scheme-purple .nb-line{background:linear-gradient(180deg,#8B5CF6,#C4B5FD)}
+.scheme-purple .nb-name{color:#F5F3FF}
+.scheme-purple .nb-title{color:#C4B5FD}
+.scheme-purple .nb-title2{color:rgba(196,181,253,.6)}
+.scheme-purple .nb-glow{background:linear-gradient(90deg,#8B5CF6,transparent)}
+
+/* Templates */
 .nb-a .nb-name{font-size:36px;display:inline}
 .nb-a .nb-title{font-size:26px;display:inline;margin:0}
 .nb-a .nb-title2{display:none}
@@ -36,14 +81,14 @@ html,body{
 .nb-c .nb-title2{font-size:20px;max-width:1000px}
 .nb-d{padding:16px 28px}
 .nb-d .nb-name{font-size:42px}
-.nb-d .nb-title{font-size:20px;color:rgba(255,255,255,.5)}
-.nb-d .nb-title2{font-size:18px;color:rgba(255,255,255,.4)}
+.nb-d .nb-title{font-size:20px}
+.nb-d .nb-title2{font-size:18px}
 .nb-e .nb-name{font-size:52px}
 .nb-e .nb-title{font-size:24px;max-width:850px}
-.nb-e .nb-title2{font-size:22px;max-width:850px;color:#94A3B8;margin-top:4px}
-.nb-f{padding:14px 28px;background:transparent;border-radius:0 8px 8px 0}
+.nb-e .nb-title2{font-size:22px;max-width:850px;margin-top:4px}
+.nb-f{padding:14px 28px;background:transparent}
 .nb-f .nb-name{font-size:40px;display:inline}
-.nb-f .nb-title{font-size:20px;display:inline;margin-left:14px;color:rgba(255,255,255,.6)}
+.nb-f .nb-title{font-size:20px;display:inline;margin-left:14px}
 .nb-f .nb-title2{display:none}
 .nb-f .nb-glow{display:none}
 .nb-f .nb-line{width:3px}
@@ -51,7 +96,7 @@ html,body{
 </head>
 <body>
 
-<div id="namebar">
+<div id="namebar" class="scheme-blue">
   <div class="nb nb-b" id="nb-inner">
     <div class="nb-line"></div>
     <span class="nb-name" id="nbName">--</span>
@@ -69,6 +114,7 @@ html,body{
   var elTitle = document.getElementById('nbTitle');
   var elTitle2 = document.getElementById('nbTitle2');
   var currentTpl = 'B';
+  var currentScheme = 'blue';
   var currentVisible = true;
 
   var p = location.search.substring(1).split('&');
@@ -79,20 +125,31 @@ html,body{
   }
   if (!roomId) return;
 
-  // Show "loading" so vMix knows the page works
-  elName.textContent = '...';
-  elTitle.textContent = 'loading';
+  elName.textContent = '待添加';
+  elTitle.textContent = '请先在操控台添加人员';
 
-  function render(persons, idx, tpl, visible) {
+  function applyScheme(scheme) {
+    if (scheme && scheme !== currentScheme) {
+      bar.className = 'scheme-' + scheme;
+      currentScheme = scheme;
+    }
+  }
+
+  function render(persons, idx, tpl, visible, scheme) {
     if (tpl && tpl !== currentTpl) {
       inner.className = 'nb nb-' + tpl.toLowerCase();
       currentTpl = tpl;
     }
+    applyScheme(scheme || currentScheme);
     if (idx >= 0 && idx < persons.length) {
       var p = persons[idx];
       elName.textContent = p.name || '';
       elTitle.textContent = p.title || '';
       elTitle2.textContent = p.title2 || '';
+    } else {
+      elName.textContent = '待添加';
+      elTitle.textContent = '请先在操控台添加人员';
+      elTitle2.textContent = '';
     }
     if (typeof visible === 'boolean') {
       currentVisible = visible;
@@ -100,7 +157,7 @@ html,body{
     }
   }
 
-  // ===== WebSocket (vMix may not support, but try) =====
+  // WebSocket
   var proto = location.protocol === 'https:' ? 'wss' : 'ws';
   var wsUrl = proto + '//' + location.host + '/namebar/ws';
   var ws = null;
@@ -115,7 +172,7 @@ html,body{
         var msg = JSON.parse(ev.data);
         if (msg.type === 'state' && msg.data) {
           var d = msg.data;
-          render(d.persons || [], d.currentIndex, d.currentTemplate, d.visible);
+          render(d.persons || [], d.currentIndex, d.currentTemplate, d.visible, d.colorScheme);
         }
       };
       ws.onclose = function() { ws = null; };
@@ -124,7 +181,7 @@ html,body{
   }
   wsConnect();
 
-  // ===== XHR polling fallback (always runs, vMix safe) =====
+  // XHR polling fallback
   function poll() {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '/namebar/api/state/' + roomId + '?_=' + Date.now(), true);
@@ -132,7 +189,7 @@ html,body{
     xhr.onload = function() {
       if (xhr.status === 200) {
         var d = JSON.parse(xhr.responseText);
-        render(d.persons || [], d.currentIndex, d.currentTemplate, d.visible);
+        render(d.persons || [], d.currentIndex, d.currentTemplate, d.visible, d.colorScheme);
       }
     };
     xhr.onerror = function() {};
