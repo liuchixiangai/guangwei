@@ -50,16 +50,19 @@ body{
 /* ===== Control Screen Top Bar ===== */
 .top-bar{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:14px 0;margin-bottom:20px;flex-wrap:wrap;
+  padding:14px 0;margin-bottom:20px;
 }
-.top-info{display:flex;align-items:center;gap:10px}
+/* 桌面: row1+row2 并排; 移动: 堆叠 */
+.top-row1{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.top-row2{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.top-info{display:flex;align-items:center;gap:10px;min-width:0}
 .top-room{
   padding:6px 14px;background:rgba(255,255,255,.06);border-radius:8px;
   font-size:14px;font-weight:700;color:#FF6B00;font-family:monospace;letter-spacing:1px;
 }
 .top-op{font-size:13px;color:#94A3B8}
 .top-actions{display:flex;gap:8px}
-.top-status{display:flex;align-items:center;gap:6px;font-size:12px}
+.top-status{display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
 .ws-dot{width:7px;height:7px;border-radius:50%}
 .ws-dot.on{background:#22C55E}
 .ws-dot.off{background:#EF4444}
@@ -232,68 +235,119 @@ body{
   cursor:pointer;white-space:nowrap;
 }
 
-/* ===== 微信H5 / 移动端适配 ===== */
+/* ===== 微信H5 / 移动端适配（≤640px） ===== */
 @media(max-width:640px){
   body{padding-top:0}
-  #entry-screen, #control-screen{padding:16px 12px;max-width:100%}
+  #entry-screen, #control-screen{padding:12px 12px 24px;max-width:100%}
 
-  /* Entry */
-  .entry-logo{margin-top:32px}
-  .entry-logo h1{font-size:24px}
-  .entry-logo .sub{font-size:12px;padding:0 10px}
-  .entry-box{max-width:100%;margin:24px auto;padding:24px 16px;border-radius:12px}
-  .entry-box input{padding:14px 16px;font-size:16px}
-  .btn{padding:14px 24px;font-size:15px;border-radius:12px}
+  /* ---- Entry Screen ---- */
+  .entry-logo{margin-top:40px;margin-bottom:4px}
+  .entry-logo h1{font-size:28px}
+  .entry-logo .sub{font-size:12px;padding:0 10px;line-height:1.5}
+  .entry-box{max-width:100%;margin:20px auto;padding:20px 16px;border-radius:14px}
+  .entry-box label{font-size:14px}
+  .entry-box input{padding:14px 16px;font-size:16px;border-radius:10px}
+  .entry-box .hint{font-size:12px;margin-bottom:16px}
+  .btn{padding:14px 24px;font-size:15px;border-radius:12px;min-height:48px}
+  .btn-primary{font-size:16px}
 
-  /* Top Bar */
-  .top-bar{padding:8px 0;margin-bottom:12px;gap:8px}
-  .top-info{flex:1;min-width:0}
-  .top-room{font-size:13px;padding:5px 10px}
-  .top-op{font-size:11px}
-  .top-actions{gap:6px}
-  .top-status{font-size:11px}
+  /* ---- Top Bar (2-row layout) ---- */
+  .top-bar{
+    padding:8px 0;margin-bottom:14px;gap:0;
+    flex-direction:column;align-items:stretch;
+  }
+  .top-row1{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .top-row2{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:8px}
+  .top-info{flex:1;min-width:0;align-items:center;gap:8px}
+  .top-room{font-size:14px;padding:5px 12px}
+  .top-op{font-size:12px}
+  .top-row2 .btn{padding:8px 16px;font-size:13px;min-height:40px;border-radius:8px}
+  .top-status{font-size:11px;gap:5px}
 
-  /* Sections */
-  .section{padding:16px;border-radius:12px}
+  /* ---- Sections ---- */
+  .section{padding:14px;border-radius:12px;margin-bottom:12px}
   .section-title{font-size:12px;margin-bottom:10px}
 
-  /* Person List */
-  .person-list{max-height:200px;gap:6px}
-  .person-item{padding:10px 12px}
-  .person-name{font-size:14px}
-  .person-title{font-size:11px}
-  .btn-icon{width:36px;height:36px;font-size:16px}
+  /* ---- Person List ---- */
+  .person-list{max-height:220px;gap:5px}
+  .person-item{padding:10px 10px;border-radius:8px;gap:8px}
+  .person-name{font-size:15px}
+  .person-title{font-size:11px;margin-top:1px}
+  .person-order{font-size:11px;margin-right:2px;min-width:14px}
+  .btn-icon{width:34px;height:34px;font-size:16px;border-radius:8px}
 
-  /* Add Form */
-  .add-form{gap:6px;margin-bottom:10px}
-  .add-form input{padding:12px 14px;font-size:15px}
+  /* ---- Add Form - Compact ---- */
+  .add-form{gap:5px;margin-bottom:8px;flex-direction:column}
+  .add-form input{padding:10px 12px;font-size:14px;border-radius:8px}
+  .add-form .btn{padding:12px;min-height:44px;font-size:14px}
 
-  /* Templates */
-  .template-grid{grid-template-columns:repeat(3,1fr);gap:4px}
-  .template-btn{padding:10px 6px;font-size:12px}
+  /* ---- Templates (2 cols on ≤400px) ---- */
+  .template-grid{grid-template-columns:repeat(3,1fr);gap:5px}
+  .template-btn{padding:10px 4px;font-size:11px;border-radius:8px;line-height:1.3}
 
-  /* Color Dots */
-  .color-schemes{gap:12px;margin-top:10px}
-  .color-dot{width:32px;height:32px}
+  /* ---- Color Dots ---- */
+  .color-schemes{gap:10px;margin-top:8px;justify-content:flex-start}
+  .color-dot{width:30px;height:30px;border-width:2px}
 
-  /* Display */
-  .display-toggle{padding:12px;flex-direction:column;align-items:stretch;gap:8px}
-  .toggle-label{font-size:14px;text-align:center}
-  .display-btns{justify-content:center;gap:12px}
-  .btn-show,.btn-hide{padding:12px 32px;font-size:15px;flex:1;text-align:center}
+  /* ---- Display Toggle ---- */
+  .display-toggle{padding:14px;flex-direction:column;align-items:stretch;gap:10px;border-radius:10px}
+  .toggle-label{font-size:15px;text-align:center}
+  .display-btns{justify-content:stretch;gap:10px}
+  .btn-show,.btn-hide{padding:12px 0;font-size:15px;flex:1;text-align:center;min-height:46px;border-radius:10px}
+
+  /* ---- Links ---- */
+  .link-list{gap:8px}
+  .link-item{flex-wrap:nowrap;gap:6px;align-items:center}
+  .link-label{font-size:11px;white-space:nowrap;flex-shrink:0;width:50px}
+  .link-url{font-size:11px;padding:7px 8px;flex:1;min-width:0;border-radius:6px}
+  .btn-copy{padding:7px 12px;font-size:11px;flex-shrink:0;border-radius:6px;min-height:34px}
+
+  /* ---- Operation Log ---- */
+  .op-log{max-height:130px;margin-top:8px}
+  .op-entry{font-size:10px;padding:3px 0}
+
+  /* ---- Contact ---- */
+  .contact-row{margin-top:16px;gap:6px}
+  .contact-row .contact-text{font-size:12px}
+  .contact-row .contact-wx{font-size:12px}
+  .contact-row .copy-btn{padding:4px 10px;font-size:11px}
+
+  /* ---- Toast ---- */
+  .toast{bottom:16px;font-size:13px;padding:8px 18px;border-radius:8px}
+}
+
+/* ===== 窄屏适配（≤400px，如 iPhone SE / 375px） ===== */
+@media(max-width:400px){
+  /* Entry */
+  .entry-logo{margin-top:28px}
+  .entry-logo h1{font-size:24px}
+  .entry-box{margin:14px auto;padding:16px 14px}
+
+  /* Top bar: even more compact */
+  .top-room{font-size:12px;padding:4px 10px}
+  .top-op{font-size:11px}
+  .top-row2 .btn{padding:7px 12px;font-size:12px;min-height:36px}
+
+  /* Sections tighter */
+  .section{padding:12px;border-radius:10px}
+
+  /* Person list */
+  .person-list{max-height:180px}
+  .person-item{padding:8px 8px}
+
+  /* Templates → 2 columns */
+  .template-grid{grid-template-columns:repeat(2,1fr);gap:4px}
+  .template-btn{padding:10px 4px;font-size:11px}
+
+  /* Color dots */
+  .color-dot{width:28px;height:28px}
 
   /* Links */
-  .link-item{flex-wrap:wrap;gap:6px}
-  .link-label{flex:0 0 100%;font-size:11px}
-  .link-url{font-size:11px;padding:8px 10px;flex:1;min-width:0}
-  .btn-copy{padding:8px 14px;font-size:12px;flex-shrink:0}
+  .link-label{width:42px;font-size:10px}
+  .link-url{font-size:10px;padding:6px}
 
   /* Log */
-  .op-log{max-height:150px;margin-top:12px}
-  .op-entry{font-size:11px}
-
-  /* Toast */
-  .toast{bottom:20px;font-size:13px;padding:10px 20px}
+  .op-log{max-height:100px}
 }
 </style>
 </head>
@@ -318,14 +372,16 @@ body{
 
 <!-- ==================== CONTROL SCREEN ==================== -->
 <div id="control-screen" class="hidden">
-  <!-- Top Bar -->
+  <!-- Top Bar (桌面端: 单行 flex; 移动端: 两行堆叠) -->
   <div class="top-bar">
-    <div class="top-info">
-      <div class="top-room" id="top-room">------</div>
-      <div class="top-op" id="top-operator">---</div>
-    </div>
-    <div class="top-actions">
+    <div class="top-row1">
+      <div class="top-info">
+        <div class="top-room" id="top-room">------</div>
+        <div class="top-op" id="top-operator">---</div>
+      </div>
       <div class="top-status"><span class="ws-dot off" id="ws-dot"></span><span id="ws-text">离线</span></div>
+    </div>
+    <div class="top-row2">
       <button class="btn btn-sm btn-secondary" id="btn-share">分享</button>
       <button class="btn btn-sm btn-secondary" id="btn-leave">退出</button>
     </div>
