@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>⚽ 足球比分叠加层</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:transparent!important;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif}
+
+/* 国际足球赛事比分条样式 - 左上角 */
+.scoreboard-bar{position:absolute;top:24px;left:24px;display:flex;align-items:stretch;height:52px;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.6)}
+
+/* 队伍色块 + 队名 */
+.team-block{display:flex;align-items:center;padding:0 14px;gap:8px;min-width:100px}
+.team-block .team-name{font-size:16px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.home-block{border-right:1px solid rgba(255,255,255,.15)}
+.away-block{border-left:1px solid rgba(255,255,255,.15)}
+
+/* 比分区域 */
+.score-block{display:flex;align-items:center;justify-content:center;padding:0 14px;min-width:42px}
+.score-block .score{font-size:24px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;text-shadow:0 1px 4px rgba(0,0,0,.4);line-height:1}
+.home-score-block{background:rgba(0,0,0,.7)}
+.away-score-block{background:rgba(0,0,0,.7)}
+
+/* VS分隔 */
+.vs-block{display:flex;align-items:center;justify-content:center;padding:0 6px;background:rgba(0,0,0,.5)}
+.vs-text{font-size:11px;font-weight:600;color:rgba(255,255,255,.4)}
+
+/* 时间/半场区域 */
+.info-block{display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(0,0,0,.8);border-left:1px solid rgba(255,255,255,.1)}
+.timer-text{font-size:18px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.period-text{font-size:12px;font-weight:600;color:rgba(255,255,255,.65);white-space:nowrap}
+.injury-text{font-size:14px;font-weight:700;color:#FFD700;font-variant-numeric:tabular-nums}
+
+/* 比分弹跳动画 */
+@keyframes scoreBump{0%{transform:scale(1)}25%{transform:scale(1.3)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+.score-bump{animation:scoreBump .4s cubic-bezier(.36,.07,.19,.97) both}
+
+/* 隐藏模块 */
+.hidden-mod{display:none!important}
+</style>
+</head>
+<body>
+<div class="scoreboard-bar" id="bar">
+  <!-- 主队 -->
+  <div class="team-block home-block" id="home-team-block" style="background:rgba(255,107,0,.85)">
+    <span class="team-name" id="home-name">主队</span>
+  </div>
+  <div class="score-block home-score-block">
+    <span class="score" id="home-score">0</span>
+  </div>
+  <!-- VS -->
+  <div class="vs-block"><span class="vs-text">-</span></div>
+  <!-- 客队比分 -->
+  <div class="score-block away-score-block">
+    <span class="score" id="away-score">0</span>
+  </div>
+  <!-- 客队 -->
+  <div class="team-block away-block" id="away-team-block" style="background:rgba(0,87,168,.85)">
+    <span class="team-name" id="away-name">客队</span>
+  </div>
+  <!-- 时间/半场信息 -->
+  <div class="info-block" id="info-block">
+    <span class="timer-text" id="timer">00:00</span>
+    <span class="injury-text hidden-mod" id="injury">+0</span>
+    <span class="period-text" id="period">上半场</span>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const roomId = params.get('room') || '';
+let ws = null, wsPingTimer = null, state = {};
+const qNames = ['', '上半场', '中场休息', '下半场', '加时赛', '点球大战'];
+
+function $(id) { return document.getElementById(id); }
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = proto + '://' + location.host + '/';
+  try { ws = new WebSocket(url); } catch (e) { setTimeout(connectWS, 3000); return; }
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'join', roomId }));
+    wsPingTimer = setInterval(() => { if (ws && ws.readyState === WebSocket.OPEN) try { ws.send(JSON.stringify({ type: 'ping' })); } catch {} }, 25000);
+  };
+  ws.onmessage = (e) => { try { const msg = JSON.parse(e.data); if (msg.type === 'state') applyState(msg.data); } catch {} };
+  ws.onclose = () => { clearInterval(wsPingTimer); setTimeout(connectWS, 3000); };
+}
+
+function triggerScoreBump(id) {
+  const el = $(id); if (!el) return;
+  el.classList.remove('score-bump'); void el.offsetWidth; el.classList.add('score-bump');
+  el.addEventListener('animationend', () => el.classList.remove('score-bump'), { once: true });
+}
+
+function applyState(s) {
+  state = s;
+  $('home-name').textContent = s.homeTeam || '主队';
+  $('away-name').textContent = s.awayTeam || '客队';
+
+  // 比分动画
+  const oldH = $('home-score').textContent;
+  const oldA = $('away-score').textContent;
+  $('home-score').textContent = s.homeScore || 0;
+  $('away-score').textContent = s.awayScore || 0;
+  if (String(s.homeScore || 0) !== oldH) triggerScoreBump('home-score');
+  if (String(s.awayScore || 0) !== oldA) triggerScoreBump('away-score');
+
+  // 队伍颜色
+  const hc = s.homeColor || '#FF6B00';
+  const ac = s.awayColor || '#0057A8';
+  $('home-team-block').style.background = hexToRgba(hc, 0.85);
+  $('away-team-block').style.background = hexToRgba(ac, 0.85);
+
+  // 计时器
+  $('timer').textContent = s.timeLeft || '00:00';
+  $('period').textContent = qNames[s.quarter] || '上半场';
+
+  // 补时
+  if (s.injuryTime && s.injuryTime > 0) {
+    $('injury').textContent = '+' + s.injuryTime;
+    $('injury').classList.remove('hidden-mod');
+  } else {
+    $('injury').classList.add('hidden-mod');
+  }
+
+  // 模块显隐
+  if (s.show) {
+    const tVis = s.show.mainTimer !== false;
+    const qVis = s.show.quarter !== false;
+    const iVis = s.show.injuryTime === true && s.injuryTime > 0;
+    $('info-block').classList.toggle('hidden-mod', !tVis && !qVis && !iVis);
+    $('timer').classList.toggle('hidden-mod', !tVis);
+    $('period').classList.toggle('hidden-mod', !qVis);
+  }
+}
+
+function hexToRgba(hex, alpha) {
+  hex = hex.replace('#', '');
+  if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  const r = parseInt(hex.substring(0,2), 16);
+  const g = parseInt(hex.substring(2,4), 16);
+  const b = parseInt(hex.substring(4,6), 16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+
+if (roomId) {
+  connectWS();
+  fetch('/api/state/' + roomId).then(r => r.json()).then(applyState).catch(() => {});
+} else {
+  document.body.innerHTML = '<div style="color:#fff;text-align:center;margin-top:40vh">缺少房间号参数</div>';
+}
+</script>
+</body>
+</html>

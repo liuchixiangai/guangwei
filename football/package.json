@@ -1,0 +1,14 @@
+{
+  "name": "gw-football",
+  "version": "3.0.0",
+  "description": "光为云足球记分系统",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.6.0",
+    "express": "^4.21.0",
+    "ws": "^8.17.0"
+  }
+}

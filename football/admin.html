@@ -1,0 +1,738 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>⚽ 足球比分控制台</title>
+<style>
+:root{--primary:#FF6B00;--blue:#0057A8;--bg:#0f1428;--bg2:#1a2040;--bg3:#232b50;--border:rgba(255,255,255,.08);--text:#e8eaf6;--muted:rgba(255,255,255,.45);--green:#00c853;--red:#ff3d3d;--gold:#FFD700;--radius:12px}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif;font-size:15px;overflow-x:hidden}
+.app{min-height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto}
+
+/* Toast */
+#toast{position:fixed;top:env(safe-area-inset-top,12px);left:50%;transform:translateX(-50%) translateY(-8px);background:rgba(30,40,70,.97);color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.5);opacity:0;transition:all .25s;pointer-events:none;z-index:9999;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* 入口 */
+.entry-overlay{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.entry-overlay.gone{display:none!important}
+.entry-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px 24px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.6);text-align:center}
+.entry-icon{font-size:56px;margin-bottom:8px}
+.entry-title{font-size:22px;font-weight:700;margin-bottom:6px}
+.entry-subtitle{color:var(--muted);font-size:13px;margin-bottom:20px;line-height:1.5}
+.name-input{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:16px;margin-bottom:16px;text-align:center}
+.name-input:focus{border-color:var(--primary);outline:none}
+.name-input::placeholder{color:var(--muted)}
+.entry-btn{width:100%;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;color:#fff;transition:opacity .2s,transform .1s}
+.entry-btn:active{opacity:.8;transform:scale(.98)}
+.entry-btn.green{background:var(--green)}
+.entry-btn.orange{background:var(--primary)}
+.entry-error{color:var(--red);font-size:13px;text-align:center;margin-top:12px;min-height:18px}
+.entry-hint-join{color:var(--primary);font-size:12px;margin-top:14px;opacity:.7}
+/* 联系客服 */
+.contact-row{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);white-space:nowrap;flex-wrap:nowrap}
+.contact-row .contact-text{font-size:12px;color:var(--muted);white-space:nowrap}
+.contact-row .wx-icon{display:inline-flex;align-items:center;justify-content:center;background:#07C160;color:#fff;font-size:10px;font-weight:700;width:32px;height:18px;border-radius:4px;flex-shrink:0;letter-spacing:0.5px}
+.contact-row .contact-wx{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#07C160;font-weight:600;white-space:nowrap}
+.contact-row .copy-btn{padding:3px 8px;border:1px solid rgba(7,193,96,.3);border-radius:5px;background:rgba(7,193,96,.1);color:#07C160;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.contact-row .copy-btn:active{opacity:.6}
+.contact-row .copy-btn.copied{background:rgba(7,193,96,.25);border-color:#07C160}
+
+/* 主界面 */
+.app-main{display:none;flex-direction:column;padding:12px;gap:10px}
+.app-main.visible{display:flex}
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg2);border-radius:10px}
+.top-bar-left{display:flex;align-items:center;gap:8px}
+.op-avatar{width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.op-info{display:flex;flex-direction:column}
+.op-name-text{font-size:13px;font-weight:600}
+.op-role{font-size:11px;color:var(--muted)}
+.conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+.conn-dot.on{background:var(--green)}
+.conn-dot.off{background:var(--red)}
+
+/* 队伍卡片 */
+.team-row{display:flex;gap:8px;align-items:stretch}
+.team-card{flex:1;min-width:0;background:var(--bg2);border-radius:var(--radius);padding:12px 10px;text-align:center;position:relative}
+.team-color-bar{height:4px;border-radius:2px;margin-bottom:8px;transition:background .3s}
+.team-name-row{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px}
+.team-name{font-size:14px;font-weight:600;outline:none;min-height:20px;border-bottom:1px solid var(--border);padding-bottom:4px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-user-select:text;user-select:text;flex:1;min-width:0}
+.team-name:focus{overflow:visible;white-space:normal}
+.color-picker-btn{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.2);cursor:pointer;flex-shrink:0;padding:0;-webkit-tap-highlight-color:transparent}
+.color-picker-btn input[type=color]{opacity:0;width:0;height:0;position:absolute}
+.score-display{font-size:52px;font-weight:900;margin:4px 0;transition:transform .1s}
+.score-display.bump{animation:scoreBump .4s cubic-bezier(.36,.07,.19,.97) both}
+@keyframes scoreBump{0%{transform:scale(1)}25%{transform:scale(1.25)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+.score-btns{display:flex;gap:6px;justify-content:center}
+.score-btn{width:44px;height:44px;border-radius:50%;border:none;font-size:22px;font-weight:700;cursor:pointer;color:#fff;transition:transform .1s,opacity .15s}
+.score-btn:active{opacity:.7;transform:scale(.9)}
+.score-btn.plus{background:var(--green)}
+.score-btn.minus{background:var(--red)}
+
+/* 计时器 */
+.timer-section{background:var(--bg2);border-radius:var(--radius);padding:14px;text-align:center}
+.timer-display{font-size:48px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:2px;color:#fff}
+.timer-btns{display:flex;gap:8px;justify-content:center;margin-top:10px}
+.timer-btn{padding:10px 18px;border:none;border-radius:8px;font-weight:700;cursor:pointer;color:#fff;font-size:14px;transition:opacity .15s}
+.timer-btn:active{opacity:.7}
+.timer-btn.start{background:var(--green)}
+.timer-btn.pause{background:var(--primary)}
+.timer-btn.reset{background:var(--bg3);color:var(--text)}
+
+/* 半场标签 + 补时 */
+.period-section{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.period-btn{padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.period-btn:active{opacity:.7}
+
+/* 补时区 */
+.injury-section{background:var(--bg2);border-radius:var(--radius);padding:12px;border-left:3px solid var(--gold)}
+.injury-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.injury-title{font-size:13px;font-weight:700;color:var(--gold);display:flex;align-items:center;gap:4px}
+.injury-display{font-size:28px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums;margin:4px 0}
+.injury-btns{display:flex;gap:6px;flex-wrap:wrap}
+.injury-btn{padding:8px 12px;border:none;border-radius:6px;font-weight:700;cursor:pointer;color:#fff;font-size:13px;transition:opacity .15s}
+.injury-btn:active{opacity:.7}
+.injury-btn.plus{background:var(--gold);color:#000}
+.injury-btn.minus{background:rgba(255,215,0,.2);color:var(--gold)}
+.injury-btn.confirm{background:var(--green)}
+.injury-btn.cancel{background:var(--red)}
+.injury-status{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* 模块开关 */
+.module-row{display:flex;gap:8px;flex-wrap:wrap}
+.mod-toggle{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--muted);font-size:12px;cursor:pointer;transition:all .15s}
+.mod-toggle.on{background:var(--bg3);color:var(--text);border-color:var(--primary)}
+
+/* 底部工具栏 */
+.tool-bar{display:flex;justify-content:space-between;gap:0;padding:8px 0;margin-top:auto}
+.tool-btn{flex:1 1 0;min-width:0;padding:10px 2px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:12px;font-weight:600;text-align:center;cursor:pointer;transition:all .15s;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.tool-btn+.tool-btn{margin-left:6px}
+.tool-btn:active{opacity:.7}
+
+/* 分享/数据源 modal */
+.share-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:none;align-items:center;justify-content:center;padding:20px}
+.share-overlay.visible{display:flex}
+.share-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;width:100%;max-width:380px;max-height:85vh;overflow-y:auto}
+.share-tabs{display:flex;gap:6px;margin-bottom:16px}
+.share-tab{flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;text-align:center}
+.share-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.share-panel{display:none}
+.share-panel.active{display:block}
+.share-url{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;margin:8px 0}
+.share-hint{color:var(--muted);font-size:12px;line-height:1.6;margin:8px 0 12px}
+.copy-btn{width:100%;padding:10px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+.copy-btn:active{opacity:.8}
+.close-btn{display:block;margin:16px auto 0;padding:8px 32px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);font-size:13px;cursor:pointer}
+
+/* 操作日志 */
+.log-section{background:var(--bg2);border-radius:var(--radius);padding:12px;margin-top:2px}
+.log-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.log-title{font-size:13px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:6px}
+.log-list{max-height:160px;overflow-y:auto;font-size:12px;line-height:1.6;scroll-behavior:smooth}
+.log-list::-webkit-scrollbar{width:3px}
+.log-list::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+.log-item{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border);align-items:baseline}
+.log-time{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:52px}
+.log-op{color:var(--primary);font-weight:600;white-space:nowrap;max-width:48px;overflow:hidden;text-overflow:ellipsis}
+.log-action{color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-empty{color:var(--muted);font-size:12px;text-align:center;padding:12px 0}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- 入口 -->
+<div class="entry-overlay" id="entry">
+  <div class="entry-card">
+    <div class="entry-icon">⚽</div>
+    <div class="entry-title">足球比分控制台</div>
+    <div class="entry-subtitle" id="entry-hint">输入姓名，系统自动创建房间</div>
+    <input class="name-input" id="name-input" type="text" placeholder="输入你的姓名" autocomplete="off" maxlength="10">
+    <button class="entry-btn green" id="entry-btn" onclick="doEntry()">开 始</button>
+    <div class="entry-error" id="entry-error"></div>
+    <div class="entry-hint-join" id="entry-join-hint" style="display:none"></div>
+    <div class="contact-row">
+      <span class="contact-text">不会使用？联系他</span>
+      <span class="contact-wx"><span class="wx-icon">微信</span><span>liuchixiang</span></span>
+      <button class="copy-btn" onclick="copyWx(this)">复制</button>
+    </div>
+  </div>
+</div>
+
+<!-- 主界面 -->
+<div class="app-main" id="main">
+  <!-- 顶栏 -->
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <div class="op-avatar" id="op-avatar"></div>
+      <div class="op-info">
+        <div class="op-name-text" id="op-name"></div>
+        <div class="op-role">记分员</div>
+      </div>
+    </div>
+    <div><span class="conn-dot" id="conn-dot"></span><span style="font-size:12px" id="conn-text">连接中</span></div>
+  </div>
+
+  <!-- 队伍（带颜色） -->
+  <div class="team-row">
+    <div class="team-card">
+      <div class="team-color-bar" id="home-color-bar" style="background:#FF6B00"></div>
+      <div class="team-name-row">
+        <div class="team-name" contenteditable="true" id="home-name" maxlength="8">主队</div>
+        <div class="color-picker-btn" id="home-color-btn" style="background:#FF6B00" onclick="$('home-color-input').click()">
+          <input type="color" id="home-color-input" value="#FF6B00" onchange="setTeamColor('home',this.value)">
+        </div>
+      </div>
+      <div class="score-display" id="home-score">0</div>
+      <div class="score-btns">
+        <button class="score-btn minus" onclick="changeScore('home',-1)">−</button>
+        <button class="score-btn plus" onclick="changeScore('home',1)">+</button>
+      </div>
+    </div>
+    <div class="team-card">
+      <div class="team-color-bar" id="away-color-bar" style="background:#0057A8"></div>
+      <div class="team-name-row">
+        <div class="team-name" contenteditable="true" id="away-name" maxlength="8">客队</div>
+        <div class="color-picker-btn" id="away-color-btn" style="background:#0057A8" onclick="$('away-color-input').click()">
+          <input type="color" id="away-color-input" value="#0057A8" onchange="setTeamColor('away',this.value)">
+        </div>
+      </div>
+      <div class="score-display" id="away-score">0</div>
+      <div class="score-btns">
+        <button class="score-btn minus" onclick="changeScore('away',-1)">−</button>
+        <button class="score-btn plus" onclick="changeScore('away',1)">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 正计时器 -->
+  <div class="timer-section">
+    <div class="timer-display" id="timer-display">00:00</div>
+    <div class="timer-btns">
+      <button class="timer-btn start" id="timer-start" onclick="toggleTimer()">开始</button>
+      <button class="timer-btn reset" onclick="resetTimer()">重置</button>
+    </div>
+  </div>
+
+  <!-- 半场标签 -->
+  <div class="period-section">
+    <button class="period-btn active" data-q="1" onclick="setQuarter(1)">上半场</button>
+    <button class="period-btn" data-q="2" onclick="setQuarter(2)">中场休息</button>
+    <button class="period-btn" data-q="3" onclick="setQuarter(3)">下半场</button>
+    <button class="period-btn" data-q="4" onclick="setQuarter(4)">加时赛</button>
+    <button class="period-btn" data-q="5" onclick="setQuarter(5)">点球大战</button>
+  </div>
+
+  <!-- 补时区（专业版） -->
+  <div class="injury-section">
+    <div class="injury-header">
+      <div class="injury-title">⏱ 伤停补时</div>
+      <div class="injury-status" id="injury-status">未启用</div>
+    </div>
+    <div class="injury-display" id="injury-display">+0</div>
+    <div class="injury-btns">
+      <button class="injury-btn minus" onclick="adjustInjury(-1)">−1</button>
+      <button class="injury-btn plus" onclick="adjustInjury(1)">+1</button>
+      <button class="injury-btn plus" onclick="adjustInjury(5)">+5</button>
+      <button class="injury-btn confirm" onclick="confirmInjury()">✓ 确认</button>
+      <button class="injury-btn cancel" onclick="cancelInjury()">✕ 取消</button>
+    </div>
+    <div class="injury-status" id="injury-hint">补时仅在比赛进行中生效，确认后显示在比分板上</div>
+  </div>
+
+  <!-- 模块开关 -->
+  <div class="module-row">
+    <button class="mod-toggle on" id="mod-timer" onclick="toggleMod('mainTimer')">⏱ 计时器</button>
+    <button class="mod-toggle on" id="mod-injury" onclick="toggleMod('injuryTime')">🤕 补时</button>
+    <button class="mod-toggle on" id="mod-quarter" onclick="toggleMod('quarter')">📋 半场</button>
+  </div>
+
+  <!-- 操作日志 -->
+  <div class="log-section">
+    <div class="log-header">
+      <div class="log-title">📝 操作日志</div>
+      <div style="font-size:11px;color:var(--muted)" id="log-count">0 条</div>
+    </div>
+    <div class="log-list" id="log-list">
+      <div class="log-empty">等待操作…</div>
+    </div>
+  </div>
+
+  <!-- 底部工具 -->
+  <div class="tool-bar">
+    <button class="tool-btn" onclick="showShare('obs')"><span>🏠</span><span>透明网页</span></button>
+    <button class="tool-btn" onclick="showShare('cast')"><span>📺</span><span>投屏链接</span></button>
+    <button class="tool-btn" onclick="showDataSource()"><span>📊</span><span>芯象/vMix</span></button>
+    <button class="tool-btn" onclick="showShare('relay')"><span>🔗</span><span>多人计分</span></button>
+    <button class="tool-btn" onclick="doLogout()"><span>🚪</span><span>返回主页</span></button>
+  </div>
+  <div class="contact-row" style="border-top:none;margin-top:8px;padding-top:0">
+    <span class="contact-text">不会使用？联系他</span>
+    <span class="contact-wx"><span class="wx-icon">微信</span> <span>liuchixiang</span></span>
+    <button class="copy-btn" onclick="copyWx(this)">复制</button>
+  </div>
+</div>
+
+<!-- 分享弹窗 -->
+<div class="share-overlay" id="share-modal" onclick="if(event.target===this)hideShare()">
+  <div class="share-card" onclick="event.stopPropagation()">
+    <div style="font-size:18px;font-weight:700;margin-bottom:12px">分享记分台</div>
+    <div class="share-tabs">
+      <button class="share-tab active" data-share="obs" onclick="switchShareTab('obs')">🏠 透明网页</button>
+      <button class="share-tab" data-share="cast" onclick="switchShareTab('cast')">📺 投屏</button>
+      <button class="share-tab" data-share="relay" onclick="switchShareTab('relay')">🔗 多人计分</button>
+    </div>
+    <div class="share-panel active" id="panel-obs">
+      <div style="color:var(--muted);font-size:13px">在 OBS / vMix 中作为 Browser Source 添加，透明背景无缝叠加</div>
+      <input class="share-url" id="share-url-obs" readonly onclick="this.select()">
+      <div class="share-hint">
+        <b>OBS 配置步骤：</b><br>
+        1. 添加 → 浏览器源(Browser Source)<br>
+        2. URL 填入上方链接<br>
+        3. 宽度 <b>1920</b>，高度 <b>1080</b><br>
+        4. 勾选 <b>"Shutdown source when not visible"</b><br>
+        5. 自定义CSS保持默认即可（页面已自带透明背景）
+      </div>
+      <button class="copy-btn" onclick="copyUrl('share-url-obs')">复制透明网页链接</button>
+    </div>
+    <div class="share-panel" id="panel-cast">
+      <div style="color:var(--muted);font-size:13px">大屏投屏专用页面，16:9 布局，适合投影/电视/LED屏</div>
+      <input class="share-url" id="share-url-cast" readonly onclick="this.select()">
+      <div class="share-hint">
+        <b>投屏使用说明：</b><br>
+        1. 复制上方链接到投屏设备浏览器打开<br>
+        2. 或在大屏设备直接扫码访问<br>
+        3. 页面自动全屏显示比分，实时同步<br>
+        4. 适合体育馆投影、电视直播、LED大屏
+      </div>
+      <button class="copy-btn" onclick="copyUrl('share-url-cast')">复制投屏链接</button>
+    </div>
+    <div class="share-panel" id="panel-relay">
+      <div style="color:var(--muted);font-size:13px">分享此链接给其他裁判/记分员，他们输入姓名即可接力操作</div>
+      <input class="share-url" id="share-url-relay" readonly onclick="this.select()">
+      <div class="share-hint">
+        <b>接力协同说明：</b><br>
+        1. 复制上方链接发送给副裁/接替人<br>
+        2. 对方打开后输入自己的姓名<br>
+        3. 自动进入房间，看到最新比分<br>
+        4. 无缝接力操作，数据实时同步
+      </div>
+      <button class="copy-btn" onclick="copyUrl('share-url-relay')">复制接力链接</button>
+    </div>
+    <button class="close-btn" onclick="hideShare()">关闭</button>
+  </div>
+</div>
+
+<!-- 数据源弹窗 -->
+<div class="share-overlay" id="data-modal" onclick="if(event.target===this)hideDataSource()">
+  <div class="share-card" style="max-width:420px" onclick="event.stopPropagation()">
+    <div style="font-size:18px;font-weight:700;margin-bottom:12px">📊 分享 & 数据源</div>
+    <div class="share-tabs">
+      <button class="share-tab active" data-ds="json" onclick="switchDataTab('json')">📋 JSON</button>
+      <button class="share-tab" data-ds="xml" onclick="switchDataTab('xml')">📄 XML</button>
+    </div>
+    <div class="share-panel active" id="ds-panel-json">
+      <div style="color:var(--muted);font-size:13px;margin-bottom:4px">JSON 数据地址（供第三方软件读取）：</div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin:8px 0">
+        <div style="font-size:13px;color:var(--gold);word-break:break-all;font-family:monospace" id="ds-json-url"></div>
+      </div>
+      <button class="copy-btn" onclick="copyDataUrl('json')">📋 复制地址</button>
+      <div class="share-hint">
+        <b>使用说明：</b><br>
+        1. 复制上方 JSON 地址<br>
+        2. 在支持 JSON 数据源的软件中填入该地址<br>
+        3. 软件每隔 1 秒刷新获取最新比分
+      </div>
+      <div style="background:#0a0f1a;border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:10px;max-height:200px;overflow:auto">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">↑ 实时 JSON 预览</div>
+        <pre style="font-size:11px;color:#7ee787;font-family:monospace;white-space:pre-wrap;word-break:break-all;margin:0" id="ds-json-preview"></pre>
+      </div>
+    </div>
+    <div class="share-panel" id="ds-panel-xml">
+      <div style="color:var(--muted);font-size:13px;margin-bottom:4px">XML 数据地址（供 vMix 等软件读取）：</div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin:8px 0">
+        <div style="font-size:13px;color:var(--gold);word-break:break-all;font-family:monospace" id="ds-xml-url"></div>
+      </div>
+      <button class="copy-btn" onclick="copyDataUrl('xml')">📋 复制地址</button>
+      <div class="share-hint">
+        <b>vMix 设置步骤：</b><br>
+        1. 添加 <span style="background:rgba(255,107,0,0.2);color:var(--gold);padding:1px 4px;border-radius:3px">Data Source</span> → 类型 <span style="background:rgba(255,107,0,0.2);color:var(--gold);padding:1px 4px;border-radius:3px">XML</span><br>
+        2. 粘贴上方地址到 URL 字段<br>
+        3. 刷新间隔设为 1 秒
+      </div>
+      <div style="background:#0a0f1a;border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:10px;max-height:200px;overflow:auto">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">↑ 实时 XML 预览</div>
+        <pre style="font-size:11px;color:#7ee787;font-family:monospace;white-space:pre-wrap;word-break:break-all;margin:0" id="ds-xml-preview"></pre>
+      </div>
+    </div>
+    <button class="close-btn" onclick="hideDataSource()">关闭</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+</div>
+
+<script>
+// ========== 全局 ==========
+let roomId = '';
+let currentOp = null;
+let ws = null;
+let wsPingTimer = null;
+let state = {};
+let pendingInjury = 0; // 补时待确认分钟数
+const LS_KEY = 'fb-v4';
+const qNames = ['', '上半场', '中场休息', '下半场', '加时赛', '点球大战'];
+
+const urlParams = new URLSearchParams(location.search);
+const urlRoom = urlParams.get('room');
+
+// ========== 工具 ==========
+function $(id) { return document.getElementById(id); }
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+function safeFetch(url, opts) {
+  opts = opts || {};
+  if (typeof AbortController !== 'undefined') {
+    const c = new AbortController();
+    const timer = setTimeout(() => c.abort(), 15000);
+    return fetch(url, Object.assign({}, opts, { signal: c.signal })).finally(() => clearTimeout(timer));
+  }
+  return fetch(url, opts);
+}
+
+// ========== localStorage ==========
+function saveLocal(data) { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch {} }
+function loadLocal() { try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch { return null; } }
+function clearLocal() { try { localStorage.removeItem(LS_KEY); } catch {} }
+
+// ========== 入口 ==========
+async function doEntry() {
+  const name = $('name-input').value.trim();
+  if (!name) { $('entry-error').textContent = '请输入姓名'; return; }
+  $('entry-error').textContent = '';
+  const btn = $('entry-btn');
+  btn.disabled = true; btn.style.opacity = '0.6';
+  try {
+    if (urlRoom) {
+      const res = await safeFetch('/api/room/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId: urlRoom, name }) });
+      const data = await res.json();
+      if (data.success) { roomId = urlRoom; currentOp = data.operator; saveLocal({ roomId, operator: currentOp, name }); enterMain(); }
+      else { $('entry-error').textContent = data.error || '加入失败'; }
+    } else {
+      const res = await safeFetch('/api/room/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      const data = await res.json();
+      if (data.success) { saveLocal({ roomId: data.roomId, operator: data.operator, name }); location.href = location.pathname + '?room=' + data.roomId; }
+      else { $('entry-error').textContent = data.error || '创建失败'; }
+    }
+  } catch (err) { $('entry-error').textContent = '网络错误: ' + (err.message || '请检查网络'); }
+  finally { btn.disabled = false; btn.style.opacity = '1'; }
+}
+
+function enterMain() {
+  $('entry').classList.add('gone'); $('entry').style.display = 'none';
+  $('main').classList.add('visible'); $('main').style.display = 'flex';
+  if (currentOp) { $('op-name').textContent = currentOp.name; $('op-avatar').textContent = currentOp.name.charAt(0).toUpperCase(); }
+  connectWS(); loadState();
+}
+
+// ========== WebSocket ==========
+function connectWS() {
+  if (ws && ws.readyState === WebSocket.OPEN) return;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = proto + '://' + location.host + '/';
+  try { ws = new WebSocket(url); } catch (e) { setConn(false); setTimeout(connectWS, 3000); return; }
+  ws.onopen = () => { setConn(true); ws.send(JSON.stringify({ type: 'join', roomId, operatorId: currentOp ? currentOp.id : '' })); startPing(); };
+  ws.onmessage = (e) => { try { const msg = JSON.parse(e.data); if (msg.type === 'state') applyState(msg.data); if (msg.type === 'op_log') appendLog(msg.data); } catch {} };
+  ws.onclose = () => { setConn(false); stopPing(); setTimeout(connectWS, 3000); };
+  ws.onerror = () => { setConn(false); };
+}
+function startPing() { stopPing(); wsPingTimer = setInterval(() => { if (ws && ws.readyState === WebSocket.OPEN) try { ws.send(JSON.stringify({ type: 'ping' })); } catch {} }, 25000); }
+function stopPing() { if (wsPingTimer) { clearInterval(wsPingTimer); wsPingTimer = null; } }
+function setConn(on) { $('conn-dot').className = 'conn-dot ' + (on ? 'on' : 'off'); $('conn-text').textContent = on ? '已连接' : '断线重连中'; }
+
+// ========== 状态 ==========
+async function loadState() { try { const res = await safeFetch('/api/state/' + roomId); applyState(await res.json()); } catch (e) { console.error('loadState', e); } }
+
+function applyState(s) {
+  state = s;
+  $('home-name').textContent = s.homeTeam || '主队';
+  $('away-name').textContent = s.awayTeam || '客队';
+  $('home-score').textContent = s.homeScore || 0;
+  $('away-score').textContent = s.awayScore || 0;
+  $('timer-display').textContent = s.timeLeft || '00:00';
+  $('timer-start').textContent = s.timerRunning ? '暂停' : '开始';
+  $('timer-start').className = 'timer-btn ' + (s.timerRunning ? 'pause' : 'start');
+
+  // 半场按钮
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.q) === s.quarter));
+
+  // 补时显示
+  if (s.injuryTime != null && s.injuryTime !== '' && s.injuryTime !== 0) {
+    $('injury-display').textContent = '+' + s.injuryTime;
+    $('injury-status').textContent = '已确认 ' + s.injuryTime + ' 分钟';
+    pendingInjury = parseInt(s.injuryTime) || 0;
+  } else {
+    $('injury-display').textContent = '+' + pendingInjury;
+    if (!pendingInjury) $('injury-status').textContent = '未启用';
+  }
+
+  // 队伍颜色
+  const hc = s.homeColor || '#FF6B00';
+  const ac = s.awayColor || '#0057A8';
+  $('home-color-bar').style.background = hc;
+  $('away-color-bar').style.background = ac;
+  $('home-color-btn').style.background = hc;
+  $('away-color-btn').style.background = ac;
+  if (document.activeElement !== $('home-color-input')) $('home-color-input').value = hc;
+  if (document.activeElement !== $('away-color-input')) $('away-color-input').value = ac;
+
+  // 模块开关
+  if (s.show) {
+    $('mod-timer').classList.toggle('on', s.show.mainTimer !== false);
+    $('mod-injury').classList.toggle('on', s.show.injuryTime === true);
+    $('mod-quarter').classList.toggle('on', s.show.quarter !== false);
+  }
+}
+
+function sendUpdate(data, action, detail) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'update', data, action, operatorName: currentOp ? currentOp.name : '', detail: detail || '' }));
+  }
+}
+
+// ========== 计时器（正计时） ==========
+function toggleTimer() {
+  const willRun = !state.timerRunning;
+  state.timerRunning = willRun;
+  $('timer-start').textContent = willRun ? '暂停' : '开始';
+  $('timer-start').className = 'timer-btn ' + (willRun ? 'pause' : 'start');
+  safeFetch('/api/timer/' + roomId + '/' + (willRun ? 'start' : 'stop'), { method: 'POST' });
+  sendUpdate({ timerRunning: willRun }, 'timer', willRun ? '开始计时' : '暂停计时');
+}
+function resetTimer() {
+  state.timerSeconds = 0; state.timeLeft = '00:00'; state.timerRunning = false;
+  $('timer-display').textContent = '00:00';
+  $('timer-start').textContent = '开始'; $('timer-start').className = 'timer-btn start';
+  safeFetch('/api/timer/' + roomId + '/reset', { method: 'POST' });
+  sendUpdate({ timerSeconds: 0, timeLeft: '00:00', timerRunning: false }, 'timer', '重置计时');
+}
+
+// ========== 加减分 ==========
+function changeScore(side, delta) {
+  const key = side + 'Score';
+  const val = Math.max(0, (state[key] || 0) + delta);
+  state[key] = val;
+  const el = $(side + '-score');
+  el.textContent = val;
+  el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 500);
+  const update = {}; update[key] = val;
+  sendUpdate(update, side + '_score', (delta > 0 ? '+' : '') + delta);
+}
+
+// ========== 队伍颜色 ==========
+function setTeamColor(side, color) {
+  $(side + '-color-bar').style.background = color;
+  $(side + '-color-btn').style.background = color;
+  const update = {}; update[side + 'Color'] = color;
+  state[side + 'Color'] = color;
+  sendUpdate(update, side + '_color', color);
+}
+
+// ========== 半场 ==========
+function setQuarter(q) {
+  state.quarter = q;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.q) === q));
+  sendUpdate({ quarter: q }, 'quarter', qNames[q]);
+}
+
+// ========== 补时逻辑（国际赛事标准） ==========
+function adjustInjury(mins) {
+  pendingInjury = Math.max(0, pendingInjury + mins);
+  $('injury-display').textContent = '+' + pendingInjury;
+  $('injury-status').textContent = '待确认：' + pendingInjury + ' 分钟';
+}
+
+function confirmInjury() {
+  if (pendingInjury <= 0) { toast('请先设置补时分钟数'); return; }
+  sendUpdate({ injuryTime: pendingInjury, injuryConfirmed: true }, 'injury_time', '确认补时 ' + pendingInjury + ' 分钟');
+  $('injury-status').textContent = '已确认 ' + pendingInjury + ' 分钟';
+  toast('补时已确认：' + pendingInjury + ' 分钟');
+}
+
+function cancelInjury() {
+  pendingInjury = 0;
+  $('injury-display').textContent = '+0';
+  $('injury-status').textContent = '已取消';
+  sendUpdate({ injuryTime: 0, injuryConfirmed: false }, 'injury_time', '取消补时');
+  toast('补时已取消');
+}
+
+// ========== 模块开关 ==========
+function toggleMod(mod) {
+  const show = Object.assign({}, state.show || {});
+  show[mod] = !show[mod];
+  state.show = show;
+  if (mod === 'mainTimer') $('mod-timer').classList.toggle('on', show.mainTimer !== false);
+  if (mod === 'injuryTime') $('mod-injury').classList.toggle('on', show.injuryTime === true);
+  if (mod === 'quarter') $('mod-quarter').classList.toggle('on', show.quarter !== false);
+  sendUpdate({ show }, 'toggle_' + mod);
+}
+
+// ========== 操作日志 ==========
+const LOG_MAX = 100;
+const LOG_RETAIN_MS = 12 * 60 * 60 * 1000;
+let logItems = [];
+
+function appendLog(entry) {
+  logItems.push({ ...entry, ts: Date.now() });
+  const cutoff = Date.now() - LOG_RETAIN_MS;
+  logItems = logItems.filter(l => l.ts > cutoff);
+  if (logItems.length > LOG_MAX) logItems = logItems.slice(-LOG_MAX);
+  renderLog();
+}
+function renderLog() {
+  const list = $('log-list'); const count = $('log-count');
+  if (!logItems.length) { list.innerHTML = '<div class="log-empty">等待操作…</div>'; count.textContent = '0 条'; return; }
+  count.textContent = logItems.length + ' 条';
+  list.innerHTML = logItems.slice().reverse().map(l => {
+    return '<div class="log-item"><span class="log-time">' + (l.time || '') + '</span><span class="log-op">' + (l.operatorName || '') + '</span><span class="log-action">' + formatAction(l.action, l.detail) + '</span></div>';
+  }).join('');
+}
+function formatAction(action, detail) {
+  const map = { 'home_score': '🏠 主队得分', 'away_score': '✈️ 客队得分', 'quarter': '📋 半场切换', 'home_name': '🏠 主队改名', 'away_name': '✈️ 客队改名', 'home_color': '🎨 主队颜色', 'away_color': '🎨 客队颜色', 'injury_time': '🤕 补时', 'toggle_mainTimer': '⏱ 计时器显隐', 'toggle_injuryTime': '🤕 补时显隐', 'toggle_quarter': '📋 半场显隐', 'timer': '⏱ 计时器' };
+  let label = map[action] || action;
+  if (detail) label += ' ' + detail;
+  return label;
+}
+
+// ========== 队名编辑 ==========
+document.addEventListener('DOMContentLoaded', () => {
+  ['home-name', 'away-name'].forEach(id => {
+    const el = $(id);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') return;
+      if (el.textContent.length >= 8 && window.getSelection().toString().length === 0) e.preventDefault();
+    });
+    el.addEventListener('blur', () => {
+      const v = el.textContent.trim().substring(0, 8);
+      if (v && v !== (id === 'home-name' ? state.homeTeam : state.awayTeam)) {
+        const update = {}; update[id === 'home-name' ? 'homeTeam' : 'awayTeam'] = v;
+        sendUpdate(update, id === 'home-name' ? 'home_name' : 'away_name');
+      }
+      if (!v) el.textContent = id === 'home-name' ? '主队' : '客队';
+    });
+    el.addEventListener('focus', () => { el.style.overflow = 'visible'; el.style.whiteSpace = 'normal'; });
+    el.addEventListener('blur', () => { el.style.overflow = ''; el.style.whiteSpace = ''; });
+  });
+
+  // 初始化
+  if (urlRoom) {
+    roomId = urlRoom;
+    $('entry-hint').textContent = '输入姓名，进入房间接力操作';
+    $('entry-btn').textContent = '进 入'; $('entry-btn').className = 'entry-btn orange';
+    const saved = loadLocal();
+    if (saved && saved.roomId === urlRoom && saved.operator && saved.name) {
+      roomId = saved.roomId; currentOp = saved.operator; $('name-input').value = saved.name; enterMain(); return;
+    }
+  } else {
+    const saved = loadLocal();
+    if (saved && saved.roomId && saved.operator && saved.name) {
+      $('name-input').value = saved.name;
+      $('entry-join-hint').style.display = 'block';
+      $('entry-join-hint').innerHTML = '上次房间仍在 → <a href="?room=' + saved.roomId + '" style="color:var(--primary);font-weight:600">返回房间</a>';
+    }
+  }
+  $('name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doEntry(); });
+});
+
+// ========== 分享弹窗 ==========
+function showShare(mode) {
+  const base = location.origin;
+  $('share-url-obs').value = base + '/view.html?room=' + roomId;
+  $('share-url-cast').value = base + '/cast.html?room=' + roomId;
+  $('share-url-relay').value = base + '/admin.html?room=' + roomId;
+  switchShareTab(mode || 'obs');
+  $('share-modal').classList.add('visible'); $('share-modal').style.display = 'flex';
+}
+function hideShare() { $('share-modal').classList.remove('visible'); $('share-modal').style.display = 'none'; }
+
+function switchShareTab(tab) {
+  document.querySelectorAll('#share-modal .share-tab').forEach(b => b.classList.toggle('active', b.dataset.share === tab));
+  $('panel-obs').classList.toggle('active', tab === 'obs');
+  $('panel-cast').classList.toggle('active', tab === 'cast');
+  $('panel-relay').classList.toggle('active', tab === 'relay');
+}
+
+function copyUrl(inputId) {
+  const url = $(inputId).value;
+  if (!url) { toast('地址为空'); return; }
+  if (navigator.clipboard) { navigator.clipboard.writeText(url).then(() => toast('已复制到剪贴板')); }
+  else { $(inputId).select(); document.execCommand('copy'); toast('已复制到剪贴板'); }
+}
+
+// ========== 数据源弹窗 ==========
+function showDataSource() {
+  const base = location.origin;
+  $('ds-json-url').textContent = base + '/json/' + roomId;
+  $('ds-xml-url').textContent = base + '/xml/' + roomId;
+  updateDataPreview(); switchDataTab('json');
+  $('data-modal').classList.add('visible'); $('data-modal').style.display = 'flex';
+}
+function hideDataSource() { $('data-modal').classList.remove('visible'); $('data-modal').style.display = 'none'; }
+
+function switchDataTab(tab) {
+  document.querySelectorAll('#data-modal .share-tab').forEach(b => b.classList.toggle('active', b.dataset.ds === tab));
+  $('ds-panel-json').classList.toggle('active', tab === 'json');
+  $('ds-panel-xml').classList.toggle('active', tab === 'xml');
+}
+
+function copyDataUrl(type) {
+  const url = $(type === 'json' ? 'ds-json-url' : 'ds-xml-url').textContent;
+  if (!url) { toast('地址为空'); return; }
+  if (navigator.clipboard) { navigator.clipboard.writeText(url).then(() => toast('已复制到剪贴板')); }
+  else { fallbackCopy(url); toast('已复制到剪贴板'); }
+}
+function fallbackCopy(text) {
+  const el = document.createElement('textarea'); el.value = text; el.style.position = 'fixed'; el.style.opacity = '0';
+  document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
+}
+
+function updateDataPreview() {
+  const s = state || {};
+  const qn = qNames;
+  const jsonObj = {
+    eventName: s.eventName || '足球联赛', homeTeam: s.homeTeam || '主队', awayTeam: s.awayTeam || '客队',
+    homeScore: s.homeScore || 0, awayScore: s.awayScore || 0, quarter: s.quarter || 1, quarterName: qn[s.quarter] || '上半场',
+    timeLeft: s.timeLeft || '00:00', injuryTime: s.injuryTime || 0, timerRunning: !!s.timerRunning,
+    homeColor: s.homeColor || '#FF6B00', awayColor: s.awayColor || '#0057A8'
+  };
+  $('ds-json-preview').textContent = JSON.stringify(jsonObj, null, 2);
+  const escXml = (str) => { if (!str) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); };
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<scoreboard>\n  <eventName>' + escXml(jsonObj.eventName) + '</eventName>\n  <homeTeam>' + escXml(jsonObj.homeTeam) + '</homeTeam>\n  <awayTeam>' + escXml(jsonObj.awayTeam) + '</awayTeam>\n  <homeScore>' + jsonObj.homeScore + '</homeScore>\n  <awayScore>' + jsonObj.awayScore + '</awayScore>\n  <quarter>' + jsonObj.quarter + '</quarter>\n  <quarterName>' + escXml(jsonObj.quarterName) + '</quarterName>\n  <timeLeft>' + escXml(jsonObj.timeLeft) + '</timeLeft>\n  <injuryTime>' + jsonObj.injuryTime + '</injuryTime>\n  <timerRunning>' + jsonObj.timerRunning + '</timerRunning>\n  <homeColor>' + escXml(jsonObj.homeColor) + '</homeColor>\n  <awayColor>' + escXml(jsonObj.awayColor) + '</awayColor>\n</scoreboard>';
+  $('ds-xml-preview').textContent = xml;
+}
+
+// ========== 退出 ==========
+function doLogout() {
+  if (!confirm('确定退出？')) return;
+  currentOp = null; clearLocal(); location.href = location.pathname;
+}
+function copyWx(btn){
+  var t=document.createElement('textarea');t.value='liuchixiang';document.body.appendChild(t);t.select();
+  try{document.execCommand('copy');btn.textContent='已复制';btn.classList.add('copied');setTimeout(function(){btn.textContent='复制';btn.classList.remove('copied');},1500)}catch(e){}
+  document.body.removeChild(t);
+}
+</script>
+</body>
+</html>

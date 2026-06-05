@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>⚽ 足球比分 - 投屏</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif;background:linear-gradient(160deg,#0a1a0a 0%,#0d2818 30%,#0a1a0a 60%,#081408 100%)}
+
+/* 全屏 16:9 投屏布局 - 足球赛事风格 */
+.cast-container{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4vh 5vw;position:relative}
+
+/* 场地纹理装饰 */
+.field-pattern{position:absolute;inset:0;opacity:.03;background:repeating-linear-gradient(0deg,transparent,transparent 60px,rgba(255,255,255,.1) 60px,rgba(255,255,255,.1) 61px),repeating-linear-gradient(90deg,transparent,transparent 60px,rgba(255,255,255,.1) 60px,rgba(255,255,255,.1) 61px)}
+
+/* 顶部信息条 */
+.cast-top{display:flex;align-items:center;justify-content:center;gap:3vw;margin-bottom:4vh;z-index:1}
+.cast-period{font-size:clamp(20px,3.5vw,42px);font-weight:800;color:#FFD700;padding:6px 24px;border:2px solid rgba(255,215,0,.35);border-radius:10px;background:rgba(255,215,0,.08);letter-spacing:2px}
+
+/* 主体：队名+比分 */
+.cast-main{display:flex;align-items:center;justify-content:center;gap:5vw;width:100%;max-width:1400px;z-index:1}
+.team-block{display:flex;flex-direction:column;align-items:center;gap:1.5vh;min-width:20vw}
+.team-name{font-size:clamp(26px,5vw,64px);font-weight:800;letter-spacing:3px;text-shadow:0 2px 20px rgba(0,0,0,.5)}
+.team-score{font-size:clamp(80px,16vw,220px);font-weight:900;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 4px 30px rgba(0,0,0,.4)}
+.team-color-line{width:80%;height:4px;border-radius:2px;margin-top:1vh}
+
+.cast-center{display:flex;flex-direction:column;align-items:center;gap:2vh;padding:0 2vw}
+.cast-vs{font-size:clamp(24px,4vw,56px);font-weight:300;color:rgba(255,255,255,.15);letter-spacing:8px}
+
+/* 底部计时器 */
+.cast-bottom{display:flex;align-items:center;justify-content:center;gap:4vw;margin-top:5vh;z-index:1}
+.timer-block{display:flex;flex-direction:column;align-items:center;gap:6px}
+.timer-label{font-size:clamp(12px,1.5vw,20px);font-weight:600;color:rgba(255,255,255,.4);letter-spacing:3px;text-transform:uppercase}
+.timer-value{font-size:clamp(44px,9vw,110px);font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:4px;text-shadow:0 2px 20px rgba(255,255,255,.12)}
+.timer-divider{width:2px;height:clamp(40px,7vh,80px);background:rgba(255,255,255,.1);border-radius:1px}
+.injury-value{font-size:clamp(40px,8vw,96px);font-weight:900;color:#FFD700;font-variant-numeric:tabular-nums;text-shadow:0 2px 20px rgba(255,215,0,.15)}
+
+/* 装饰线条 */
+.cast-line{width:50%;max-width:700px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.1),transparent);margin:2vh 0;z-index:1}
+
+/* 比分弹跳 */
+@keyframes scoreBump{0%{transform:scale(1)}25%{transform:scale(1.18)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+.score-bump{animation:scoreBump .5s cubic-bezier(.36,.07,.19,.97) both}
+
+/* 运行动画 */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+.timer-pulse .timer-value{animation:pulse 1.5s ease-in-out infinite}
+
+/* 隐藏模块 */
+.hidden-mod{display:none!important}
+
+/* 无房间提示 */
+.no-room{color:rgba(255,255,255,.4);font-size:20px;text-align:center;margin-top:40vh;z-index:1}
+</style>
+</head>
+<body>
+<div class="cast-container" id="cast">
+  <div class="field-pattern"></div>
+
+  <!-- 顶部 -->
+  <div class="cast-top">
+    <span class="cast-period" id="period">上半场</span>
+  </div>
+
+  <div class="cast-line"></div>
+
+  <!-- 主体 -->
+  <div class="cast-main">
+    <div class="team-block">
+      <div class="team-name" id="home-name" style="color:#FF6B00">主队</div>
+      <div class="team-score" id="home-score" style="color:#FF6B00">0</div>
+      <div class="team-color-line" id="home-line" style="background:#FF6B00"></div>
+    </div>
+    <div class="cast-center">
+      <div class="cast-vs">VS</div>
+    </div>
+    <div class="team-block">
+      <div class="team-name" id="away-name" style="color:#0057A8">客队</div>
+      <div class="team-score" id="away-score" style="color:#0057A8">0</div>
+      <div class="team-color-line" id="away-line" style="background:#0057A8"></div>
+    </div>
+  </div>
+
+  <div class="cast-line"></div>
+
+  <!-- 底部计时器 -->
+  <div class="cast-bottom" id="timer-section">
+    <div class="timer-block" id="timer-mod">
+      <div class="timer-label">比赛时间</div>
+      <div class="timer-value" id="timer">00:00</div>
+    </div>
+    <div class="timer-divider hidden-mod" id="div-timer-injury"></div>
+    <div class="timer-block hidden-mod" id="injury-mod">
+      <div class="timer-label">伤停补时</div>
+      <div class="injury-value" id="injury">+0</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const roomId = params.get('room') || '';
+let ws = null, wsPingTimer = null, state = {};
+const qNames = ['', '上半场', '中场休息', '下半场', '加时赛', '点球大战'];
+
+function $(id) { return document.getElementById(id); }
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = proto + '://' + location.host + '/';
+  try { ws = new WebSocket(url); } catch (e) { setTimeout(connectWS, 3000); return; }
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'join', roomId }));
+    wsPingTimer = setInterval(() => { if (ws && ws.readyState === WebSocket.OPEN) try { ws.send(JSON.stringify({ type: 'ping' })); } catch {} }, 25000);
+  };
+  ws.onmessage = (e) => { try { const msg = JSON.parse(e.data); if (msg.type === 'state') applyState(msg.data); } catch {} };
+  ws.onclose = () => { clearInterval(wsPingTimer); setTimeout(connectWS, 3000); };
+}
+
+function triggerScoreBump(id) {
+  const el = $(id); if (!el) return;
+  el.classList.remove('score-bump'); void el.offsetWidth; el.classList.add('score-bump');
+  el.addEventListener('animationend', () => el.classList.remove('score-bump'), { once: true });
+}
+
+function applyState(s) {
+  state = s;
+  const hc = s.homeColor || '#FF6B00';
+  const ac = s.awayColor || '#0057A8';
+
+  // 队名+颜色
+  $('home-name').textContent = s.homeTeam || '主队';
+  $('away-name').textContent = s.awayTeam || '客队';
+  $('home-name').style.color = hc;
+  $('away-name').style.color = ac;
+  $('home-score').style.color = hc;
+  $('away-score').style.color = ac;
+  $('home-line').style.background = hc;
+  $('away-line').style.background = ac;
+
+  // 比分动画
+  const oldH = $('home-score').textContent;
+  const oldA = $('away-score').textContent;
+  $('home-score').textContent = s.homeScore || 0;
+  $('away-score').textContent = s.awayScore || 0;
+  if (String(s.homeScore || 0) !== oldH) triggerScoreBump('home-score');
+  if (String(s.awayScore || 0) !== oldA) triggerScoreBump('away-score');
+
+  // 计时器
+  $('timer').textContent = s.timeLeft || '00:00';
+  $('period').textContent = qNames[s.quarter] || '上半场';
+
+  // 补时
+  if (s.injuryTime && s.injuryTime > 0) {
+    $('injury').textContent = '+' + s.injuryTime;
+    $('injury-mod').classList.remove('hidden-mod');
+    $('div-timer-injury').classList.remove('hidden-mod');
+  } else {
+    $('injury-mod').classList.add('hidden-mod');
+    $('div-timer-injury').classList.add('hidden-mod');
+  }
+
+  // 计时器脉冲
+  const ts = $('timer-section');
+  if (s.timerRunning) ts.classList.add('timer-pulse');
+  else ts.classList.remove('timer-pulse');
+
+  // 模块显隐
+  if (s.show) {
+    $('timer-mod').classList.toggle('hidden-mod', s.show.mainTimer === false);
+    $('period').classList.toggle('hidden-mod', s.show.quarter === false);
+  }
+}
+
+if (roomId) {
+  connectWS();
+  fetch('/api/state/' + roomId).then(r => r.json()).then(applyState).catch(() => {});
+} else {
+  document.body.innerHTML = '<div class="no-room">缺少房间号参数</div>';
+}
+</script>
+</body>
+</html>

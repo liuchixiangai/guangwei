@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>🏀 篮球比分 - 投屏</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif;background:linear-gradient(135deg,#0a0e1a 0%,#141b33 50%,#0d1225 100%)}
+
+/* 全屏 16:9 投屏布局 */
+.cast-container{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3vh 4vw}
+
+/* 顶部：赛事名称+小节 */
+.cast-top{display:flex;align-items:center;justify-content:center;gap:3vw;margin-bottom:3vh}
+.cast-event{font-size:clamp(18px,3vw,36px);font-weight:600;color:rgba(255,255,255,.5);letter-spacing:2px}
+.cast-quarter{font-size:clamp(20px,3.5vw,40px);font-weight:800;color:#FFD700;padding:4px 20px;border:2px solid rgba(255,215,0,.4);border-radius:8px;background:rgba(255,215,0,.08)}
+
+/* 主体：队名+比分 */
+.cast-main{display:flex;align-items:center;justify-content:center;gap:6vw;width:100%;max-width:1400px}
+
+.team-block{display:flex;flex-direction:column;align-items:center;gap:1.5vh;min-width:20vw}
+.team-name{font-size:clamp(28px,5vw,64px);font-weight:800;letter-spacing:3px;text-transform:uppercase;text-shadow:0 2px 20px rgba(0,0,0,.5)}
+.team-score{font-size:clamp(80px,16vw,220px);font-weight:900;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 4px 30px rgba(0,0,0,.4)}
+
+/* 中间分隔 */
+.cast-center{display:flex;flex-direction:column;align-items:center;gap:2vh;padding:0 2vw}
+.cast-vs{font-size:clamp(24px,4vw,56px);font-weight:300;color:rgba(255,255,255,.2);letter-spacing:8px}
+
+/* 底部：计时器 */
+.cast-bottom{display:flex;align-items:center;justify-content:center;gap:4vw;margin-top:4vh}
+.timer-block{display:flex;flex-direction:column;align-items:center;gap:6px}
+.timer-label{font-size:clamp(12px,1.5vw,20px);font-weight:600;color:rgba(255,255,255,.4);letter-spacing:3px;text-transform:uppercase}
+.timer-value{font-size:clamp(40px,8vw,100px);font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:4px;text-shadow:0 2px 20px rgba(255,255,255,.15)}
+.timer-divider{width:2px;height:clamp(40px,7vh,80px);background:rgba(255,255,255,.12);border-radius:1px}
+.shot-value{font-size:clamp(36px,7vw,88px);font-weight:900;color:#FFD700;font-variant-numeric:tabular-nums;text-shadow:0 2px 20px rgba(255,215,0,.2)}
+
+/* 动画 */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.timer-running .timer-value{animation:pulse 1.5s ease-in-out infinite}
+.timer-running .timer-value{animation:none}
+
+/* 装饰线条 */
+.cast-line{width:60%;max-width:800px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);margin:2vh 0}
+
+/* 隐藏模块 */
+.hidden-mod{display:none!important}
+@keyframes scoreBump{0%{transform:scale(1)}20%{transform:scale(1.18)}50%{transform:scale(1.08)}80%{transform:scale(1.03)}100%{transform:scale(1)}}
+@keyframes scoreGlow{0%{filter:drop-shadow(0 0 0px currentColor)}40%{filter:drop-shadow(0 0 30px currentColor)}100%{filter:drop-shadow(0 0 0px currentColor)}}
+.score-bump{animation:scoreBump .5s cubic-bezier(.36,.07,.19,.97) both,scoreGlow .6s ease-out both}
+
+/* 无房间提示 */
+.no-room{color:rgba(255,255,255,.4);font-size:20px;text-align:center;margin-top:40vh}
+</style>
+</head>
+<body>
+<div class="cast-container" id="cast">
+
+  <!-- 顶部 -->
+  <div class="cast-top">
+    <span class="cast-event" id="event-name"></span>
+    <span class="cast-quarter" id="quarter">第1节</span>
+  </div>
+
+  <div class="cast-line"></div>
+
+  <!-- 主体 -->
+  <div class="cast-main">
+    <div class="team-block">
+      <div class="team-name" id="home-name" style="color:#FF6B00">主队</div>
+      <div class="team-score" id="home-score" style="color:#FF6B00">0</div>
+    </div>
+    <div class="cast-center">
+      <div class="cast-vs">VS</div>
+    </div>
+    <div class="team-block">
+      <div class="team-name" id="away-name" style="color:#0057A8">客队</div>
+      <div class="team-score" id="away-score" style="color:#0057A8">0</div>
+    </div>
+  </div>
+
+  <div class="cast-line"></div>
+
+  <!-- 底部计时器 -->
+  <div class="cast-bottom" id="timer-section">
+    <div class="timer-block" id="timer-mod">
+      <div class="timer-label">比赛时间</div>
+      <div class="timer-value" id="timer">10:00</div>
+    </div>
+    <div class="timer-divider" id="div-timer-shot"></div>
+    <div class="timer-block" id="shot-mod">
+      <div class="timer-label">进攻计时</div>
+      <div class="shot-value" id="shot">24</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const roomId = params.get('room') || '';
+let ws = null, wsPingTimer = null, state = {};
+const qNames = ['', '第1节', '第2节', '第3节', '第4节', '加时'];
+
+function $(id) { return document.getElementById(id); }
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = proto + '://' + location.host + '/';
+  try { ws = new WebSocket(url); } catch (e) { setTimeout(connectWS, 3000); return; }
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'join', roomId }));
+    wsPingTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) try { ws.send(JSON.stringify({ type: 'ping' })); } catch {}
+    }, 25000);
+  };
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'state') applyState(msg.data);
+    } catch {}
+  };
+  ws.onclose = () => { clearInterval(wsPingTimer); setTimeout(connectWS, 3000); };
+}
+
+function triggerScoreBump(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('score-bump');
+  void el.offsetWidth;
+  el.classList.add('score-bump');
+  el.addEventListener('animationend', () => el.classList.remove('score-bump'), { once: true });
+}
+function applyState(s) {
+  state = s;
+  // 队名+颜色
+  $('home-name').textContent = s.homeTeam || '主队';
+  $('away-name').textContent = s.awayTeam || '客队';
+  $('home-name').style.color = s.homeColor || '#FF6B00';
+  $('away-name').style.color = s.awayColor || '#0057A8';
+  $('home-score').style.color = s.homeColor || '#FF6B00';
+  $('away-score').style.color = s.awayColor || '#0057A8';
+
+  // 比分
+  const oldHome = $('home-score').textContent;
+  const oldAway = $('away-score').textContent;
+  $('home-score').textContent = s.homeScore || 0;
+  $('away-score').textContent = s.awayScore || 0;
+  if (String(s.homeScore || 0) !== oldHome) triggerScoreBump('home-score');
+  if (String(s.awayScore || 0) !== oldAway) triggerScoreBump('away-score');
+
+  // 计时器
+  $('timer').textContent = s.timeLeft || '10:00';
+  $('shot').textContent = s.shotClock != null ? s.shotClock : 24;
+
+  // 小节
+  $('quarter').textContent = qNames[s.quarter] || '';
+
+  // 赛事名称
+  $('event-name').textContent = s.eventName || '';
+
+  // 计时器运行状态
+  const timerSection = $('timer-section');
+  if (s.timerRunning) timerSection.classList.add('timer-running');
+  else timerSection.classList.remove('timer-running');
+
+  // 模块显隐
+  if (s.show) {
+    const qVis = s.show.quarter !== false;
+    const tVis = s.show.mainTimer !== false;
+    const sVis = s.show.shotClock !== false;
+
+    $('quarter').classList.toggle('hidden-mod', !qVis);
+    $('timer-mod').classList.toggle('hidden-mod', !tVis);
+    $('shot-mod').classList.toggle('hidden-mod', !sVis);
+    $('div-timer-shot').classList.toggle('hidden-mod', !(tVis && sVis));
+
+    // 如果小节隐藏，顶部区域也简化
+    if (!qVis && !s.eventName) {
+      $('cast-top') && $('cast-top').classList.add('hidden-mod');
+    } else {
+      $('cast-top') && $('cast-top').classList.remove('hidden-mod');
+    }
+  }
+}
+
+if (roomId) {
+  connectWS();
+  fetch('/api/state/' + roomId).then(r => r.json()).then(applyState).catch(() => {});
+} else {
+  document.body.innerHTML = '<div class="no-room">缺少房间号参数</div>';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>🏀 篮球比分叠加层</title>
+<style>
+/* ★ OBS兼容：强制透明背景，覆盖OBS默认白色 */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:transparent!important;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif}
+/* 整体放大 ~1.25x：高度 52→66，padding 16→20 */
+.overlay-bar{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);display:flex;align-items:center;height:66px;border-radius:14px;padding:0 20px;gap:14px;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+/* 队名+比分行：拓宽间距，给队名留更多空间 */
+.team-info{display:flex;align-items:center;gap:10px;padding:0 12px}
+/* ★ 队名区域拓宽：100→150，字号 16→20 */
+.team-name{font-size:20px;font-weight:700;color:#fff;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 比分放大 28→36，使用队伍自定义颜色 */
+.team-score{font-size:36px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;transition:color .3s}
+/* 小节 */
+.quarter-mod{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 10px}
+.quarter{font-size:14px;font-weight:600;color:rgba(255,255,255,.7)}
+/* 计时器 */
+.timer-info{display:flex;flex-direction:column;align-items:center;gap:2px;padding:0 10px}
+.timer-text{font-size:24px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
+/* 24秒进攻计时 */
+.shot-clock{font-size:18px;font-weight:700;color:#FFD700}
+/* 分隔线加高 32→42 */
+.divider{width:1px;height:42px;background:rgba(255,255,255,.2)}
+.hidden-mod{display:none!important}
+</style>
+</head>
+<body>
+<div class="overlay-bar" id="bar" style="background:rgba(15,20,40,.85)">
+  <div class="team-info">
+    <span class="team-name" id="home-name">自定义主队</span>
+    <span class="team-score" id="home-score">0</span>
+  </div>
+  <div class="divider" id="div-left"></div>
+  <div class="quarter-mod" id="quarter-mod">
+    <span class="quarter" id="quarter">第1节</span>
+  </div>
+  <div class="divider" id="div-quarter"></div>
+  <div class="timer-info" id="timer-mod">
+    <span class="timer-text" id="timer">10:00</span>
+  </div>
+  <div class="timer-info shot" id="shot-mod">
+    <span class="shot-clock" id="shot">24</span>
+  </div>
+  <div class="divider" id="div-right"></div>
+  <div class="team-info">
+    <span class="team-score" id="away-score">0</span>
+    <span class="team-name" id="away-name">自定义客队</span>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const roomId = params.get('room') || '';
+let ws = null;
+let wsPingTimer = null;
+let state = {};
+const qNames = ['', '第1节', '第2节', '第3节', '第4节', '加时'];
+
+function $(id) { return document.getElementById(id); }
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = proto + '://' + location.host + '/';
+  try { ws = new WebSocket(url); } catch (e) { setTimeout(connectWS, 3000); return; }
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'join', roomId }));
+    wsPingTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) try { ws.send(JSON.stringify({ type: 'ping' })); } catch {}
+    }, 25000);
+  };
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'state') applyState(msg.data);
+    } catch {}
+  };
+  ws.onclose = () => { clearInterval(wsPingTimer); setTimeout(connectWS, 3000); };
+};
+
+function applyState(s) {
+  state = s;
+  $('home-name').textContent = s.homeTeam || '自定义主队';
+  $('away-name').textContent = s.awayTeam || '自定义客队';
+  $('home-score').textContent = s.homeScore || 0;
+  $('away-score').textContent = s.awayScore || 0;
+  $('timer').textContent = s.timeLeft || '10:00';
+  $('quarter').textContent = qNames[s.quarter] || '';
+  $('shot').textContent = s.shotClock != null ? s.shotClock : '';
+  // bar bg
+  $('bar').style.background = s.barBg || 'rgba(15,20,40,.85)';
+  // 队伍颜色：队名 + 比分都跟随
+  $('home-name').style.color = s.homeColor || '#fff';
+  $('away-name').style.color = s.awayColor || '#fff';
+  $('home-score').style.color = s.homeColor || '#fff';
+  $('away-score').style.color = s.awayColor || '#fff';
+  // 模块显隐 + 智能分隔线
+  if (s.show) {
+    const qVis = s.show.quarter !== false;
+    const tVis = s.show.mainTimer !== false;
+    const sVis = s.show.shotClock !== false;
+    const anyCenter = qVis || tVis || sVis;
+
+    $('quarter-mod').classList.toggle('hidden-mod', !qVis);
+    $('timer-mod').classList.toggle('hidden-mod', !tVis);
+    $('shot-mod').classList.toggle('hidden-mod', !sVis);
+
+    // 左分隔线：只要有中间内容就显示
+    $('div-left').classList.toggle('hidden-mod', !anyCenter);
+    // 右分隔线：同上
+    $('div-right').classList.toggle('hidden-mod', !anyCenter);
+    // 中间分隔线（quarter 和 timer/shot 之间）：quarter 显示且 timer 或 shot 显示
+    $('div-quarter').classList.toggle('hidden-mod', !(qVis && (tVis || sVis)));
+  }
+}
+
+// 初始化
+if (roomId) {
+  connectWS();
+  fetch('/api/state/' + roomId).then(r => r.json()).then(applyState).catch(() => {});
+} else {
+  document.body.innerHTML = '<div style="color:#fff;text-align:center;margin-top:40vh">缺少房间号参数</div>';
+}
+</script>
+</body>
+</html>
