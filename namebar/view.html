@@ -3,26 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>直播字幕条 — 透明网页</title>
+<title>namebar</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{
   width:1920px;height:1080px;overflow:hidden;
   background:transparent!important;
 }
-
-/* ===== Container ===== */
 #namebar{
-  position:fixed;
-  left:160px;bottom:170px;
-  opacity:0;
-  transition:opacity .4s ease;
+  position:fixed;left:160px;bottom:170px;
+  opacity:1;
   pointer-events:none;
 }
-#namebar.show{opacity:1}
-#namebar.hide{opacity:0}
-
-/* ===== Base Inner ===== */
 .nb{
   position:relative;padding:18px 32px 14px 28px;display:inline-block;
   background:rgba(0,0,0,.78);
@@ -32,47 +24,23 @@ html,body{
   position:absolute;left:0;top:8px;bottom:8px;width:4px;border-radius:2px;
   background:linear-gradient(180deg,#6366F1,#06B6D4);
 }
-.nb-name{
-  display:block;font-size:56px;font-weight:700;color:#fff;
-  line-height:1.2;white-space:nowrap;
-}
-.nb-title{
-  display:block;font-size:26px;font-weight:400;color:#A5B4FC;
-  margin-top:6px;line-height:1.4;max-width:800px;
-  white-space:normal;word-break:break-word;
-}
-.nb-title2{
-  display:block;font-size:22px;font-weight:400;color:rgba(255,255,255,.6);
-  margin-top:2px;line-height:1.4;max-width:800px;
-}
-.nb-glow{
-  display:block;margin-top:10px;
-  width:200px;height:2px;border-radius:1px;
-  background:linear-gradient(90deg,#6366F1,transparent);
-}
-
-/* ===== Template A: 紧凑横排 ===== */
+.nb-name{display:block;font-size:56px;font-weight:700;color:#fff;line-height:1.2;white-space:nowrap}
+.nb-title{display:block;font-size:26px;font-weight:400;color:#A5B4FC;margin-top:6px;line-height:1.4;max-width:800px;white-space:normal;word-break:break-word}
+.nb-title2{display:block;font-size:22px;font-weight:400;color:rgba(255,255,255,.6);margin-top:2px;line-height:1.4;max-width:800px}
+.nb-glow{display:block;margin-top:10px;width:200px;height:2px;border-radius:1px;background:linear-gradient(90deg,#6366F1,transparent)}
 .nb-a .nb-name{font-size:36px;display:inline}
 .nb-a .nb-title{font-size:26px;display:inline;margin:0}
 .nb-a .nb-title2{display:none}
-
-/* ===== Template C: 宽松折行 ===== */
 .nb-c .nb-name{font-size:60px}
 .nb-c .nb-title{font-size:24px;max-width:1000px}
 .nb-c .nb-title2{font-size:20px;max-width:1000px}
-
-/* ===== Template D: 社交型 ===== */
 .nb-d{padding:16px 28px}
 .nb-d .nb-name{font-size:42px}
 .nb-d .nb-title{font-size:20px;color:rgba(255,255,255,.5)}
 .nb-d .nb-title2{font-size:18px;color:rgba(255,255,255,.4)}
-
-/* ===== Template E: 多身份 ===== */
 .nb-e .nb-name{font-size:52px}
 .nb-e .nb-title{font-size:24px;max-width:850px}
 .nb-e .nb-title2{font-size:22px;max-width:850px;color:#94A3B8;margin-top:4px}
-
-/* ===== Template F: 极简 ===== */
 .nb-f{padding:14px 28px;background:rgba(0,0,0,.6);border-radius:0 8px 8px 0}
 .nb-f .nb-name{font-size:40px;display:inline}
 .nb-f .nb-title{font-size:20px;display:inline;margin-left:14px;color:rgba(255,255,255,.6)}
@@ -94,70 +62,84 @@ html,body{
 </div>
 
 <script>
-(() => {
-  const bar   = document.getElementById('namebar');
-  const inner = document.getElementById('nb-inner');
-  const elName  = document.getElementById('nbName');
-  const elTitle = document.getElementById('nbTitle');
-  const elTitle2 = document.getElementById('nbTitle2');
+(function(){
+  var bar = document.getElementById('namebar');
+  var inner = document.getElementById('nb-inner');
+  var elName = document.getElementById('nbName');
+  var elTitle = document.getElementById('nbTitle');
+  var elTitle2 = document.getElementById('nbTitle2');
+  var currentTpl = 'B';
+  var currentVisible = true;
 
-  let currentVisible = false;
+  var p = location.search.substring(1).split('&');
+  var roomId = '';
+  for (var i = 0; i < p.length; i++) {
+    var kv = p[i].split('=');
+    if (kv[0] === 'room') roomId = decodeURIComponent(kv[1] || '');
+  }
+  if (!roomId) return;
 
-  function applyState(s) {
-    const persons = s.persons || [];
-    const idx = s.currentIndex;
-    const tpl = s.currentTemplate || 'B';
+  // Show "loading" so vMix knows the page works
+  elName.textContent = '...';
+  elTitle.textContent = 'loading';
 
-    // Template class
-    inner.className = 'nb nb-' + tpl.toLowerCase();
-
-    // Render person
+  function render(persons, idx, tpl, visible) {
+    if (tpl && tpl !== currentTpl) {
+      inner.className = 'nb nb-' + tpl.toLowerCase();
+      currentTpl = tpl;
+    }
     if (idx >= 0 && idx < persons.length) {
-      const p = persons[idx];
+      var p = persons[idx];
       elName.textContent = p.name || '';
       elTitle.textContent = p.title || '';
       elTitle2.textContent = p.title2 || '';
     }
-
-    // Visibility
-    if (s.visible && !currentVisible) {
-      bar.classList.remove('hide');
-      bar.classList.add('show');
-      currentVisible = true;
-    } else if (!s.visible && currentVisible) {
-      bar.classList.remove('show');
-      bar.classList.add('hide');
-      currentVisible = false;
+    if (typeof visible === 'boolean') {
+      currentVisible = visible;
+      bar.style.opacity = visible ? '1' : '0';
     }
   }
 
-  // ===== WebSocket =====
-  const roomId = new URLSearchParams(location.search).get('room') || '';
-  if (!roomId) { elName.textContent = 'missing room'; return; }
+  // ===== WebSocket (vMix may not support, but try) =====
+  var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  var wsUrl = proto + '//' + location.host + '/namebar/ws';
+  var ws = null;
 
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const WS_URL = proto + '//' + location.host + '/namebar/ws';
-  let ws;
-
-  function connect() {
-    ws = new WebSocket(WS_URL);
-    ws.onopen = () => { ws.send(JSON.stringify({ type:'join', roomId })); };
-    ws.onmessage = (ev) => {
-      let msg; try { msg = JSON.parse(ev.data); } catch { return; }
-      if (msg.type === 'state') applyState(msg.data);
-    };
-    ws.onclose = () => setTimeout(connect, 2000);
-  }
-  connect();
-
-  // Fallback HTTP polling
-  setInterval(async () => {
-    if (ws && ws.readyState === 1) return;
+  function wsConnect() {
     try {
-      const r = await fetch('/namebar/api/state/' + roomId);
-      if (r.ok) applyState(await r.json());
-    } catch {}
-  }, 1500);
+      ws = new WebSocket(wsUrl);
+      ws.onopen = function() {
+        ws.send(JSON.stringify({ type: 'join', roomId: roomId }));
+      };
+      ws.onmessage = function(ev) {
+        var msg = JSON.parse(ev.data);
+        if (msg.type === 'state' && msg.data) {
+          var d = msg.data;
+          render(d.persons || [], d.currentIndex, d.currentTemplate, d.visible);
+        }
+      };
+      ws.onclose = function() { ws = null; };
+      ws.onerror = function() { ws = null; };
+    } catch(e) { ws = null; }
+  }
+  wsConnect();
+
+  // ===== XHR polling fallback (always runs, vMix safe) =====
+  function poll() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/namebar/api/state/' + roomId + '?_=' + Date.now(), true);
+    xhr.timeout = 3000;
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        var d = JSON.parse(xhr.responseText);
+        render(d.persons || [], d.currentIndex, d.currentTemplate, d.visible);
+      }
+    };
+    xhr.onerror = function() {};
+    xhr.send();
+  }
+  poll();
+  setInterval(poll, 1000);
 })();
 </script>
 </body>
