@@ -126,15 +126,24 @@ body{
 .display-toggle{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.08);
-  background:rgba(255,255,255,.02);margin-top:12px;
+  background:rgba(255,255,255,.02);margin-top:12px;gap:10px;
 }
-.toggle-label{font-size:15px;font-weight:700}
-.toggle-btn{
-  padding:10px 28px;border-radius:10px;border:none;font-size:15px;font-weight:700;
-  cursor:pointer;transition:.2s;color:#fff;
+.toggle-label{font-size:15px;font-weight:700;flex:1}
+.display-btns{display:flex;gap:8px}
+.btn-show{
+  padding:10px 28px;border-radius:10px;border:1px solid rgba(34,197,94,.4);
+  background:rgba(34,197,94,.15);color:#22C55E;font-size:15px;font-weight:700;
+  cursor:pointer;transition:.2s;
 }
-.toggle-btn.showing{background:rgba(34,197,94,.2);color:#22C55E;border:1px solid rgba(34,197,94,.4)}
-.toggle-btn.hidden{background:rgba(255,255,255,.05);color:#64748B;border:1px solid rgba(255,255,255,.08)}
+.btn-show:hover{background:rgba(34,197,94,.25)}
+.btn-show.active{background:rgba(34,197,94,.3);box-shadow:0 0 15px rgba(34,197,94,.3)}
+.btn-hide{
+  padding:10px 28px;border-radius:10px;border:1px solid rgba(239,68,68,.4);
+  background:rgba(239,68,68,.1);color:#EF4444;font-size:15px;font-weight:700;
+  cursor:pointer;transition:.2s;
+}
+.btn-hide:hover{background:rgba(239,68,68,.2)}
+.btn-hide.active{background:rgba(239,68,68,.25);box-shadow:0 0 15px rgba(239,68,68,.3)}
 
 /* ===== Share & Links ===== */
 .link-list{display:flex;flex-direction:column;gap:10px}
@@ -258,13 +267,11 @@ body{
         <div class="section-title">显示控制</div>
         <div class="display-toggle">
           <span class="toggle-label" id="display-status-label">字幕条：隐藏</span>
-          <button class="toggle-btn hidden" id="btn-toggle-display">显示</button>
+          <div class="display-btns">
+            <button class="btn-show" id="btn-show">显示</button>
+            <button class="btn-hide active" id="btn-hide">隐藏</button>
+          </div>
         </div>
-        <p style="font-size:11px;color:#475569;margin-top:10px;text-align:center">
-          快捷键：<kbd style="padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">Ctrl+↑</kbd> 显示 ·
-          <kbd style="padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">Ctrl+↓</kbd> 隐藏 ·
-          <kbd style="padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">←</kbd><kbd style="padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">→</kbd> 切换
-        </p>
       </div>
 
       <div class="section">
@@ -391,15 +398,16 @@ function applyState(){
   if (!state) return;
 
   // Update display toggle
-  const btn = document.getElementById('btn-toggle-display');
+  const btnShow = document.getElementById('btn-show');
+  const btnHide = document.getElementById('btn-hide');
   const statusLabel = document.getElementById('display-status-label');
   if (state.visible) {
-    btn.textContent = '隐藏';
-    btn.className = 'toggle-btn showing';
+    btnShow.classList.add('active');
+    btnHide.classList.remove('active');
     statusLabel.textContent = '字幕条：显示中';
   } else {
-    btn.textContent = '显示';
-    btn.className = 'toggle-btn hidden';
+    btnShow.classList.remove('active');
+    btnHide.classList.add('active');
     statusLabel.textContent = '字幕条：隐藏';
   }
 
@@ -479,9 +487,15 @@ document.querySelectorAll('.template-btn').forEach(btn => {
 });
 
 // Display Toggle
-document.getElementById('btn-toggle-display').addEventListener('click', () => {
+document.getElementById('btn-show').addEventListener('click', () => {
   if (!state) return;
-  state.visible = !state.visible;
+  state.visible = true;
+  sendUpdate();
+  applyState();
+});
+document.getElementById('btn-hide').addEventListener('click', () => {
+  if (!state) return;
+  state.visible = false;
   sendUpdate();
   applyState();
 });
