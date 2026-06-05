@@ -94,6 +94,11 @@ wss.on('connection', (ws) => {
         clientInfo.roomToken = msg.roomToken || null;
         clientInfo.operatorId = msg.operatorId || null;
         clients.set(ws, clientInfo);
+        // 不自动创建房间：不存在或快照都不可用时返回error
+        if (!roomExists(msg.roomId)) {
+          ws.send(JSON.stringify({ type: 'error', message: '房间不存在' }));
+          return;
+        }
         const state = getRoom(msg.roomId);
         const publicState = { ...state };
         delete publicState.roomToken;
@@ -304,21 +309,35 @@ app.get('/api/operators', (req, res) => {
   res.json(db.getActiveOperators());
 });
 
+// Token校验辅助函数
+function checkToken(req, res) {
+  const roomId = req.params.roomId;
+  if (!rooms.has(roomId)) { res.status(404).json({ error: '房间不存在' }); return false; }
+  const state = rooms.get(roomId);
+  const token = req.query.token || (req.body && req.body.token) || '';
+  if (state.roomToken && token !== state.roomToken) { res.status(401).json({ error: '无权限' }); return false; }
+  return true;
+}
+
 app.get('/api/state/:roomId', (req, res) => {
   if (!roomExists(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
-  res.json(getRoom(req.params.roomId));
+  const state = getRoom(req.params.roomId);
+  const ps = { ...state };
+  delete ps.roomToken;
+  res.json(ps);
 });
 
 app.post('/api/state/:roomId', (req, res) => {
+  if (!checkToken(req, res)) return;
   const roomId = req.params.roomId;
-  if (!rooms.has(roomId)) return res.status(404).json({ error: '房间不存在' });
   const state = rooms.get(roomId);
   const update = sanitizeState(req.body);
   if (req.body.timerRunning === true && !state.timerRunning) startMainTimer(roomId);
   if (req.body.timerRunning === false && state.timerRunning) stopMainTimer(roomId);
   Object.assign(state, update);
   db.saveRoomSnapshot(roomId, state);
-  broadcastToRoom(roomId, { type: 'state', data: state });
+  const ps = { ...state }; delete ps.roomToken;
+  broadcastToRoom(roomId, { type: 'state', data: ps });
   res.json({ success: true });
 });
 
@@ -328,61 +347,68 @@ app.get('/api/operations/:roomId', (req, res) => {
 
 // 计时器控制
 app.post('/api/timer/:roomId/start', (req, res) => {
-  if (!rooms.has(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
+  if (!checkToken(req, res)) return;
   startMainTimer(req.params.roomId);
   res.json({ success: true });
 });
 
 app.post('/api/timer/:roomId/stop', (req, res) => {
-  if (!rooms.has(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
+  if (!checkToken(req, res)) return;
   stopMainTimer(req.params.roomId);
   res.json({ success: true });
 });
 
 app.post('/api/timer/:roomId/reset', (req, res) => {
+  if (!checkToken(req, res)) return;
   stopMainTimer(req.params.roomId);
-  const state = getRoom(req.params.roomId);
+  const state = rooms.get(req.params.roomId);
   state.timerSeconds = req.body.seconds || 0;
   state.timeLeft = formatTime(state.timerSeconds);
   state.timerRunning = false;
   db.saveRoomSnapshot(req.params.roomId, state);
-  broadcastToRoom(req.params.roomId, { type: 'state', data: state });
+  const ps = { ...state }; delete ps.roomToken;
+  broadcastToRoom(req.params.roomId, { type: 'state', data: ps });
   res.json({ success: true });
 });
 
-// 下半场切换（修复：quarter应设为3而非2）
 app.post('/api/timer/:roomId/secondHalf', (req, res) => {
+  if (!checkToken(req, res)) return;
   stopMainTimer(req.params.roomId);
-  const state = getRoom(req.params.roomId);
+  const state = rooms.get(req.params.roomId);
   state.timerSeconds = HALF_FIRST_CAP;
   state.timeLeft = '45:00';
   state.timerRunning = false;
-  state.quarter = 3; // 下半场=3（此前错误设为2/中场休息）
+  state.quarter = 3;
   state.injuryDisplay = '';
   db.saveRoomSnapshot(req.params.roomId, state);
-  broadcastToRoom(req.params.roomId, { type: 'state', data: state });
+  const ps = { ...state }; delete ps.roomToken;
+  broadcastToRoom(req.params.roomId, { type: 'state', data: ps });
   res.json({ success: true });
 });
 
 app.post('/api/timer/:roomId/endMatch', (req, res) => {
+  if (!checkToken(req, res)) return;
   stopMainTimer(req.params.roomId);
-  const state = getRoom(req.params.roomId);
+  const state = rooms.get(req.params.roomId);
   state.timerRunning = false;
   state.matchEnded = true;
   db.saveRoomSnapshot(req.params.roomId, state);
-  broadcastToRoom(req.params.roomId, { type: 'state', data: state });
+  const ps = { ...state }; delete ps.roomToken;
+  broadcastToRoom(req.params.roomId, { type: 'state', data: ps });
   res.json({ success: true });
 });
 
 app.post('/api/timer/:roomId/newMatch', (req, res) => {
+  if (!checkToken(req, res)) return;
   stopMainTimer(req.params.roomId);
-  const state = getRoom(req.params.roomId);
+  const state = rooms.get(req.params.roomId);
   state.timerSeconds = 0; state.timeLeft = '00:00';
   state.timerRunning = false; state.matchEnded = false;
   state.quarter = 1; state.injuryDisplay = '';
   state.homeScore = 0; state.awayScore = 0;
   db.saveRoomSnapshot(req.params.roomId, state);
-  broadcastToRoom(req.params.roomId, { type: 'state', data: state });
+  const ps = { ...state }; delete ps.roomToken;
+  broadcastToRoom(req.params.roomId, { type: 'state', data: ps });
   res.json({ success: true });
 });
 

@@ -62,6 +62,10 @@ wss.on('connection', (ws) => {
         clientInfo.roomToken = msg.roomToken || null;
         clientInfo.operatorId = msg.operatorId || null;
         clients.set(ws, clientInfo);
+        if (!roomExists(msg.roomId)) {
+          ws.send(JSON.stringify({ type: 'error', message: '房间不存在' }));
+          return;
+        }
         const state = getRoom(msg.roomId);
         const publicState = { ...state };
         delete publicState.roomToken;
@@ -350,18 +354,27 @@ app.get('/api/operators', (req, res) => {
   res.json(db.getActiveOperators());
 });
 
+// Token校验辅助函数
+function checkToken(req, res) {
+  const roomId = req.params.roomId;
+  if (!rooms.has(roomId)) { res.status(404).json({ error: '房间不存在' }); return false; }
+  const state = rooms.get(roomId);
+  const token = req.query.token || (req.body && req.body.token) || '';
+  if (state.roomToken && token !== state.roomToken) { res.status(401).json({ error: '无权限' }); return false; }
+  return true;
+}
+
 app.get('/api/state/:roomId', (req, res) => {
   if (!roomExists(req.params.roomId)) return res.status(404).json({ error: '房间不存在' });
-  res.json(getRoom(req.params.roomId));
+  res.json(publicState(getRoom(req.params.roomId)));
 });
 
 app.post('/api/state/:roomId', (req, res) => {
+  if (!checkToken(req, res)) return;
   const roomId = req.params.roomId;
-  if (!rooms.has(roomId)) return res.status(404).json({ error: '房间不存在' });
   const state = rooms.get(roomId);
   const update = sanitizeState(req.body);
 
-  // 处理计时器
   if (req.body.timerRunning === true && !state.timerRunning) startMainTimer(roomId);
   if (req.body.timerRunning === false && state.timerRunning) stopMainTimer(roomId);
   if (req.body.shotClockRunning === true && !state.shotClockRunning) startShotClock(roomId);
@@ -369,7 +382,7 @@ app.post('/api/state/:roomId', (req, res) => {
 
   Object.assign(state, update);
   db.saveRoomSnapshot(roomId, state);
-  broadcastToRoom(roomId, { type: 'state', data: state });
+  broadcastToRoom(roomId, { type: 'state', data: publicState(state) });
   res.json({ success: true });
 });
 
@@ -379,46 +392,52 @@ app.get('/api/operations/:roomId', (req, res) => {
 });
 
 app.post('/api/timer/:roomId/start', (req, res) => {
+  if (!checkToken(req, res)) return;
   startMainTimer(req.params.roomId);
   res.json({ success: true });
 });
 
 app.post('/api/timer/:roomId/stop', (req, res) => {
+  if (!checkToken(req, res)) return;
   stopMainTimer(req.params.roomId);
   res.json({ success: true });
 });
 
 app.post('/api/timer/:roomId/reset', (req, res) => {
+  if (!checkToken(req, res)) return;
   stopMainTimer(req.params.roomId);
-  const state = getRoom(req.params.roomId);
+  const state = rooms.get(req.params.roomId);
   state.timerSeconds = req.body.seconds || 600;
   const m = Math.floor(state.timerSeconds / 60).toString().padStart(2, '0');
   const s = (state.timerSeconds % 60).toString().padStart(2, '0');
   state.timeLeft = `${m}:${s}`;
   state.timerRunning = false;
   db.saveRoomSnapshot(req.params.roomId, state);
-  broadcastToRoom(req.params.roomId, { type: 'state', data: state });
+  broadcastToRoom(req.params.roomId, { type: 'state', data: publicState(state) });
   res.json({ success: true });
 });
 
 app.post('/api/shotclock/:roomId/start', (req, res) => {
+  if (!checkToken(req, res)) return;
   startShotClock(req.params.roomId);
   res.json({ success: true });
 });
 
 app.post('/api/shotclock/:roomId/stop', (req, res) => {
+  if (!checkToken(req, res)) return;
   stopShotClock(req.params.roomId);
   res.json({ success: true });
 });
 
 app.post('/api/shotclock/:roomId/reset', (req, res) => {
+  if (!checkToken(req, res)) return;
   stopShotClock(req.params.roomId);
-  const state = getRoom(req.params.roomId);
+  const state = rooms.get(req.params.roomId);
   state.shotClockSeconds = req.body.seconds || 24;
   state.shotClock = state.shotClockSeconds;
   state.shotClockRunning = false;
   db.saveRoomSnapshot(req.params.roomId, state);
-  broadcastToRoom(req.params.roomId, { type: 'state', data: state });
+  broadcastToRoom(req.params.roomId, { type: 'state', data: publicState(state) });
   res.json({ success: true });
 });
 

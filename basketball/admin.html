@@ -408,6 +408,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 <script>
 // ========== 全局 ==========
 let roomId = '';
+let currentRoomToken = '';
 let currentOp = null;
 let ws = null;
 let wsPingTimer = null;
@@ -419,6 +420,7 @@ const LS_KEY = 'bs-v4';
 // URL 参数检测
 const urlParams = new URLSearchParams(location.search);
 const urlRoom = urlParams.get('room');
+const urlToken = urlParams.get('token') || '';
 
 // ========== 工具 ==========
 function $(id) { return document.getElementById(id); }
@@ -482,8 +484,9 @@ async function doEntry() {
       });
       const data = await res.json();
       if (data.success) {
-        saveLocal({ roomId: data.roomId, operator: data.operator, name });
-        location.href = location.pathname + '?room=' + data.roomId;
+        var p = { roomId: data.roomId, roomToken: data.roomToken || '', operator: data.operator, name: name };
+        saveLocal(p);
+        location.href = location.pathname + '?room=' + data.roomId + '&token=' + (data.roomToken || '');
       } else {
         $('entry-error').textContent = data.error || '创建失败';
       }
@@ -518,7 +521,7 @@ function connectWS() {
   try { ws = new WebSocket(url); } catch (e) { setConn(false); setTimeout(connectWS, 3000); return; }
   ws.onopen = () => {
     setConn(true);
-    ws.send(JSON.stringify({ type: 'join', roomId, operatorId: currentOp ? currentOp.id : '' }));
+    ws.send(JSON.stringify({ type: 'join', roomId, roomToken: currentRoomToken || '', operatorId: currentOp ? currentOp.id : '' }));
     startPing();
   };
   ws.onmessage = (e) => {
@@ -628,12 +631,19 @@ function appendLog(data) {
   renderLog();
 }
 function renderLog() {
-  const list = $('op-log-list');
+  var list = $('op-log-list');
   if (!list) return;
-  list.innerHTML = opLogs.slice().reverse().map(l => {
-    const time = new Date(l.ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    return '<div class="op-log-item"><span class="op-log-time">' + time + '</span><span class="op-log-op">' + (l.operatorName || '') + '</span>' + (l.detail || l.action || '') + '</div>';
-  }).join('');
+  list.innerHTML = '';
+  opLogs.slice().reverse().forEach(function(l) {
+    var div = document.createElement('div'); div.className = 'op-log-item';
+    var t = document.createElement('span'); t.className = 'op-log-time';
+    t.textContent = new Date(l.ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    div.appendChild(t);
+    var o = document.createElement('span'); o.className = 'op-log-op';
+    o.textContent = (l.operatorName || ''); div.appendChild(o);
+    div.appendChild(document.createTextNode(l.detail || l.action || ''));
+    list.appendChild(div);
+  });
 }
 
 // ========== FIBA 主计时器 ==========
@@ -824,6 +834,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ========== 初始化：根据 URL 参数决定入口模式 ==========
   if (urlRoom) {
     roomId = urlRoom;
+    currentRoomToken = urlToken;
     $('entry-hint').textContent = '输入姓名，进入房间接力操作';
     $('entry-btn').textContent = '进 入';
     $('entry-btn').className = 'entry-btn orange';
@@ -841,7 +852,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (saved && saved.roomId && saved.operator && saved.name) {
       $('name-input').value = saved.name;
       $('entry-join-hint').style.display = 'block';
-      $('entry-join-hint').innerHTML = '上次房间仍在 → <a href="?room=' + saved.roomId + '" style="color:var(--primary);font-weight:600">返回房间</a>';
+      $('entry-join-hint').textContent = '上次房间仍在 → ';
+      var a = document.createElement('a');
+      a.href = '?room=' + encodeURIComponent(saved.roomId);
+      if (saved.roomToken) a.href += '&token=' + encodeURIComponent(saved.roomToken);
+      a.style.cssText = 'color:var(--primary);font-weight:600;text-decoration:none';
+      a.textContent = '返回房间';
+      $('entry-join-hint').appendChild(a);
     }
   }
 
@@ -855,9 +872,10 @@ let shareTab = 'obs';
 
 function showShare(tab) {
   if (!tab) tab = 'obs';
+  var tokenParam = currentRoomToken ? '&token=' + currentRoomToken : '';
   $('share-url-obs').value = location.origin + '/view.html?room=' + roomId;
   $('share-url-cast').value = location.origin + '/cast.html?room=' + roomId;
-  $('share-url-relay').value = location.origin + '/admin.html?room=' + roomId;
+  $('share-url-relay').value = location.origin + '/admin.html?room=' + roomId + tokenParam;
   switchShareTab(tab);
   $('share-modal').classList.add('visible');
   $('share-modal').style.display = 'flex';
