@@ -65,6 +65,16 @@ wss.on('connection', (ws) => {
         Object.assign(state, data);
         db.saveRoomSnapshot(roomId, state);
         broadcastToRoom(roomId, { type: 'state', data: state }, ws);
+        // 广播操作日志
+        if (msg.action) {
+          const opName = String(msg.operatorName || '').slice(0, 50);
+          const action = String(msg.action || '').slice(0, 100);
+          const detail = String(msg.detail || '').slice(0, 200);
+          broadcastToRoom(roomId, {
+            type: 'op_log',
+            data: { ts: Date.now(), operatorName: opName, action, detail }
+          });
+        }
       }
     } catch (e) {
       console.error('[WS msg error]', e.message);

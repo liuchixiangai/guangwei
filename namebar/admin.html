@@ -204,6 +204,13 @@ body{
 }
 .modal input:focus{border-color:#FF6B00}
 .modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* ===== Operation Log ===== */
+.op-log{max-height:200px;overflow-y:auto;margin-top:16px}
+.op-log-list{display:flex;flex-direction:column;gap:2px}
+.op-entry{font-size:12px;color:#64748B;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.op-entry .op-time{color:#475569;margin-right:6px}
+.op-entry .op-op{color:#FF6B00;font-weight:600}
 </style>
 </head>
 <body>
@@ -309,6 +316,16 @@ body{
       </div>
     </div>
   </div>
+
+  <!-- Operation Log -->
+  <div class="section" style="max-width:100%">
+    <div class="section-title">操作日志</div>
+    <div class="op-log" id="op-log">
+      <div class="op-log-list" id="op-log-list">
+        <p style="font-size:12px;color:#475569">暂无操作记录</p>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -380,7 +397,7 @@ function showControlScreen(){
   document.getElementById('control-screen').classList.remove('hidden');
 
   document.getElementById('top-room').textContent = roomId;
-  document.getElementById('top-operator').textContent = operator.name + ' · 记分员';
+  document.getElementById('top-operator').textContent = operator.name + ' · 字幕员';
   updateLinks();
 
   connectWS();
@@ -407,6 +424,9 @@ function connectWS(){
       if (msg.type === 'state') {
         state = msg.data;
         applyState();
+      }
+      if (msg.type === 'op_log') {
+        appendLog(msg.data);
       }
     } catch(ex) {}
   };
@@ -470,17 +490,19 @@ function renderPersonList(){
 function selectPerson(idx){
   if (!state) return;
   if (idx < 0 || idx >= state.persons.length) return;
-  state.currentIndex = (state.currentIndex === idx) ? -1 : idx; // toggle
-  sendUpdate();
+  state.currentIndex = (state.currentIndex === idx) ? -1 : idx;
+  var name = state.persons[idx] ? state.persons[idx].name : '';
+  sendUpdate('切换人员', name);
   applyState();
 }
 
 function deletePerson(idx){
   if (!state) return;
+  var name = state.persons[idx] ? state.persons[idx].name : '';
   state.persons.splice(idx, 1);
   if (state.currentIndex >= state.persons.length) state.currentIndex = state.persons.length - 1;
   if (state.persons.length === 0) state.currentIndex = -1;
-  sendUpdate();
+  sendUpdate('删除人员', name);
   applyState();
 }
 
@@ -494,7 +516,7 @@ document.getElementById('btn-add-person').addEventListener('click', () => {
   document.getElementById('new-name').value = '';
   document.getElementById('new-title1').value = '';
   document.getElementById('new-title2').value = '';
-  sendUpdate();
+  sendUpdate('添加人员', name);
   applyState();
 });
 
@@ -503,7 +525,7 @@ document.querySelectorAll('.template-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (!state) return;
     state.currentTemplate = btn.dataset.tpl;
-    sendUpdate();
+    sendUpdate('切换模板', '模板'+btn.dataset.tpl);
     applyState();
   });
 });
@@ -512,7 +534,7 @@ document.querySelectorAll('.color-dot').forEach(dot => {
   dot.addEventListener('click', () => {
     if (!state) return;
     state.colorScheme = dot.dataset.color;
-    sendUpdate();
+    sendUpdate('切换配色', dot.dataset.color);
     applyState();
   });
 });
@@ -521,13 +543,13 @@ document.querySelectorAll('.color-dot').forEach(dot => {
 document.getElementById('btn-show').addEventListener('click', () => {
   if (!state) return;
   state.visible = true;
-  sendUpdate();
+  sendUpdate('显示字幕', '');
   applyState();
 });
 document.getElementById('btn-hide').addEventListener('click', () => {
   if (!state) return;
   state.visible = false;
-  sendUpdate();
+  sendUpdate('隐藏字幕', '');
   applyState();
 });
 
@@ -552,9 +574,25 @@ document.getElementById('btn-leave').addEventListener('click', () => {
 // No keyboard shortcuts — use buttons only
 
 // ==================== HELPERS ====================
-function sendUpdate(){
+function sendUpdate(action, detail){
   if (!ws || ws.readyState !== 1 || !state) return;
-  ws.send(JSON.stringify({ type:'update', roomId, data: state }));
+  ws.send(JSON.stringify({ type:'update', roomId, data: state, action: action || '', detail: detail || '', operatorName: operator.name }));
+  appendLog({ ts: Date.now(), operatorName: operator.name, action: action || '', detail: detail || '' });
+}
+
+function appendLog(entry){
+  if (!entry.ts) return;
+  var list = document.getElementById('op-log-list');
+  if (list.querySelector('p') && list.querySelector('p').textContent === '暂无操作记录') list.innerHTML = '';
+  var time = new Date(entry.ts).toLocaleTimeString('zh-CN', { hour12: false });
+  var d = document.createElement('div');
+  d.className = 'op-entry';
+  d.innerHTML = '<span class=\"op-time\">' + time + '</span>' +
+    '<span class=\"op-op\">' + escHtml(entry.operatorName || '') + '</span> ' +
+    escHtml(entry.action || '') + (entry.detail ? ' · ' + escHtml(entry.detail) : '');
+  list.insertBefore(d, list.firstChild);
+  // keep max 50 entries
+  while (list.children.length > 50) list.removeChild(list.lastChild);
 }
 
 function updateLinks(){
