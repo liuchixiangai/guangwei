@@ -212,6 +212,26 @@ body{
 .op-entry .op-time{color:#475569;margin-right:6px}
 .op-entry .op-op{color:#FF6B00;font-weight:600}
 
+/* ===== Contact ===== */
+.contact-row{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-top:20px;padding:0 20px;flex-wrap:wrap;
+}
+.contact-row .contact-text{font-size:13px;color:#64748B}
+.contact-row .wx-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:#07C160;color:#fff;font-size:10px;font-weight:700;
+  padding:2px 8px;border-radius:4px;flex-shrink:0;
+}
+.contact-row .contact-wx{
+  font-size:13px;color:#07C160;font-weight:600;
+}
+.contact-row .copy-btn{
+  padding:4px 12px;border:1px solid rgba(7,193,96,.3);border-radius:6px;
+  background:rgba(7,193,96,.1);color:#07C160;font-size:12px;font-weight:600;
+  cursor:pointer;white-space:nowrap;
+}
+
 /* ===== 微信H5 / 移动端适配 ===== */
 @media(max-width:640px){
   body{padding-top:0}
@@ -389,6 +409,14 @@ body{
         <p style="font-size:12px;color:#475569">暂无操作记录</p>
       </div>
     </div>
+  </div>
+
+  <!-- Contact -->
+  <div class="contact-row">
+    <span class="contact-text">需要帮助？联系客服</span>
+    <span class="wx-icon">微信</span>
+    <span class="contact-wx">liuchixiang</span>
+    <button class="copy-btn" onclick="copyWx(this)">复制</button>
   </div>
 </div>
 
@@ -689,6 +717,13 @@ function copyToClipboard(text){
 }
 
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function copyWx(btn){
+  copyToClipboard('liuchixiang').then(function(){
+    btn.textContent='已复制'; btn.classList.add('copied');
+    setTimeout(function(){ btn.textContent='复制'; btn.classList.remove('copied'); },1500);
+  });
+}
 
 function toast(msg){
   const t = document.createElement('div');
