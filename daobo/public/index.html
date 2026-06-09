@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+<title>导播星球 — 直播导播工具平台 | 会议直播字幕 · 赛事记分板 · OBS/vMix 浏览器源</title>
+<meta name="description" content="导播星球提供会议人名条、篮球记分板、足球记分板等直播导播工具，支持 OBS/vMix/芯象浏览器源、XML/JSON数据源导入、手机远程控制、多人协同。服务会议直播、赛事直播、活动直播。">
+<meta name="keywords" content="导播星球,直播导播工具,会议人名条,篮球记分板,足球记分板,OBS记分牌,vMix数据源,体育记分,字幕条,直播字幕,免费记分牌,导播台工具">
+<meta name="robots" content="index, follow">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Helvetica Neue',sans-serif;
+  background:#070b18;color:#e0e4f0;line-height:1.6;min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ===== 顶部导航 ===== */
+.site-nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 20px;
+  background:rgba(7,11,24,.92);backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.nav-logo{font-size:17px;font-weight:800;color:#fff;text-decoration:none;letter-spacing:-0.5px}
+.nav-logo .dot{color:#6366F1}
+.nav-links{display:flex;gap:16px;list-style:none}
+.nav-links a{color:rgba(255,255,255,.5);text-decoration:none;font-size:13px;font-weight:500;transition:color .2s}
+.nav-links a:hover{color:#6366F1}
+
+/* ===== Banner ===== */
+.hero{
+  position:relative;min-height:520px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+  padding:100px 20px 60px;overflow:hidden;
+}
+.hero-bg{
+  position:absolute;inset:0;z-index:0;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 40%, rgba(99,102,241,.12) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 60%, rgba(255,107,0,.06) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 20% 60%, rgba(34,197,94,.05) 0%, transparent 70%);
+}
+.hero-grid{
+  position:absolute;inset:0;z-index:0;opacity:.03;
+  background-image:
+    linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px);
+  background-size:60px 60px;
+}
+/* 行业图标点缀 */
+.hero-icons{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+}
+.hero-icon{
+  position:absolute;font-size:28px;opacity:.12;filter:grayscale(.5);
+}
+.hero-icon:nth-child(1){top:15%;left:8%}
+.hero-icon:nth-child(2){top:12%;right:10%}
+.hero-icon:nth-child(3){bottom:20%;left:12%}
+.hero-icon:nth-child(4){bottom:18%;right:8%}
+.hero-icon:nth-child(5){top:45%;left:5%}
+.hero-icon:nth-child(6){top:40%;right:5%}
+
+.hero-content{position:relative;z-index:2;max-width:680px}
+.hero-badge{
+  display:inline-block;padding:5px 16px;border-radius:20px;
+  background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.2);
+  font-size:12px;color:#A5B4FC;font-weight:600;margin-bottom:20px;letter-spacing:.5px;
+}
+.hero h1{
+  font-size:clamp(28px,5.5vw,48px);font-weight:900;line-height:1.2;
+  background:linear-gradient(135deg,#fff 20%,#A5B4FC 80%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:10px;
+}
+.hero-subtitle{
+  font-size:clamp(15px,2.5vw,18px);color:rgba(255,255,255,.45);
+  margin-bottom:12px;font-weight:500;
+}
+.hero-tagline{
+  font-size:clamp(13px,2vw,15px);color:rgba(255,255,255,.3);
+  margin-bottom:36px;line-height:1.6;
+}
+.hero-cta{
+  display:inline-flex;align-items:center;gap:8px;padding:14px 36px;
+  background:linear-gradient(135deg,#6366F1,#4F46E5);color:#fff;border:none;
+  border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;
+  text-decoration:none;transition:all .25s;box-shadow:0 4px 20px rgba(99,102,241,.3);
+}
+.hero-cta:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(99,102,241,.4)}
+
+/* ===== 统计条 ===== */
+.stats-bar{
+  display:flex;gap:32px;justify-content:center;flex-wrap:wrap;
+  padding:24px 20px;max-width:600px;margin:0 auto;
+  position:relative;z-index:2;
+}
+.stat-item{text-align:center}
+.stat-num{font-size:clamp(22px,3vw,28px);font-weight:900;color:#fff}
+.stat-label{font-size:12px;color:rgba(255,255,255,.35);margin-top:2px}
+
+/* ===== 区块通用 ===== */
+.section{padding:60px 20px;max-width:1100px;margin:0 auto;position:relative;z-index:1}
+.section-header{text-align:center;margin-bottom:36px}
+.section-header h2{font-size:clamp(20px,3.5vw,28px);font-weight:800;color:#fff;margin-bottom:8px}
+.section-header .sub{font-size:14px;color:rgba(255,255,255,.35)}
+
+/* ===== 工具卡片 - 双列 ===== */
+.tools-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:16px;max-width:720px;margin:0 auto;
+}
+.tool-card{
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:40px 24px;border-radius:16px;text-decoration:none;transition:all .3s;
+  background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);
+}
+.tool-card:hover{transform:translateY(-4px)}
+.tool-card:nth-child(1):hover{background:rgba(99,102,241,.08);border-color:rgba(99,102,241,.3)}
+.tool-card:nth-child(2):hover{background:rgba(255,107,0,.08);border-color:rgba(255,107,0,.3)}
+.tool-card .icon{font-size:44px}
+.tool-card h3{font-size:18px;font-weight:800;color:#fff}
+.tool-card p{font-size:12px;color:rgba(255,255,255,.35);text-align:center;line-height:1.5}
+.tool-card .tag-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.tool-card .tag{
+  padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;
+  background:rgba(255,255,255,.06);color:rgba(255,255,255,.4);
+}
+
+/* ===== 最近使用 ===== */
+.usage-list{max-width:640px;margin:0 auto}
+.usage-item{
+  display:flex;align-items:center;gap:12px;padding:12px 16px;
+  border-radius:10px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);
+  margin-bottom:6px;transition:.2s;
+}
+.usage-item:hover{background:rgba(255,255,255,.04)}
+.usage-time{font-size:12px;color:rgba(255,255,255,.25);white-space:nowrap;min-width:100px}
+.usage-nick{font-size:14px;color:#fff;font-weight:600}
+.usage-tool{font-size:12px;color:rgba(255,255,255,.35)}
+.usage-dot{width:6px;height:6px;border-radius:50%;background:#6366F1;flex-shrink:0}
+
+/* ===== 留言墙 ===== */
+.message-wall{max-width:640px;margin:0 auto}
+.msg-card{
+  padding:18px 20px;border-radius:12px;margin-bottom:10px;
+  background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);
+  position:relative;
+}
+.msg-card.pinned{border-color:rgba(99,102,241,.2);background:rgba(99,102,241,.04)}
+.msg-pin{position:absolute;top:8px;right:12px;font-size:12px;color:#6366F1;font-weight:600}
+.msg-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.msg-city{font-size:13px;color:#A5B4FC;font-weight:600}
+.msg-content{font-size:14px;color:rgba(255,255,255,.7);line-height:1.7;margin-bottom:10px}
+.msg-footer{display:flex;align-items:center;justify-content:space-between}
+.msg-time{font-size:11px;color:rgba(255,255,255,.2)}
+.msg-like{
+  display:flex;align-items:center;gap:4px;padding:5px 12px;border-radius:8px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+  color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;transition:.2s;
+}
+.msg-like:hover{background:rgba(99,102,241,.1);color:#6366F1;border-color:rgba(99,102,241,.2)}
+.msg-like.liked{color:#EF4444;border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.06)}
+
+/* 留言提交 */
+.msg-form{
+  max-width:640px;margin:0 auto 24px;padding:20px;border-radius:14px;
+  background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);
+}
+.msg-form .row{display:flex;gap:10px;margin-bottom:10px}
+.msg-form input,.msg-form textarea{
+  flex:1;padding:10px 14px;border-radius:8px;font-size:14px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);
+  color:#fff;outline:none;font-family:inherit;
+}
+.msg-form input:focus,.msg-form textarea:focus{border-color:#6366F1}
+.msg-form textarea{resize:vertical;min-height:80px;width:100%}
+.msg-form button{
+  width:100%;padding:12px;border-radius:10px;border:none;
+  background:linear-gradient(135deg,#6366F1,#4F46E5);color:#fff;
+  font-size:14px;font-weight:600;cursor:pointer;transition:.2s;
+}
+.msg-form button:hover{opacity:.9}
+.msg-form .hint{font-size:11px;color:rgba(255,255,255,.2);margin-top:8px;text-align:center}
+
+/* ===== 支持者模块 ===== */
+.support-list{max-width:640px;margin:0 auto}
+.support-item{
+  display:flex;align-items:center;gap:12px;padding:14px 16px;
+  border-radius:10px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);
+  margin-bottom:6px;transition:.2s;
+}
+.support-item:hover{background:rgba(255,255,255,.04)}
+.support-date{font-size:12px;color:rgba(255,255,255,.2);white-space:nowrap;min-width:80px}
+.support-name{font-size:14px;color:#fff;font-weight:600;text-decoration:none}
+.support-name:hover{color:#6366F1}
+.support-amount{font-size:15px;color:#6366F1;font-weight:700;margin-left:auto}
+
+/* ===== SEO 关键词区 ===== */
+.seo-section{padding:40px 20px 60px;max-width:900px;margin:0 auto}
+.seo-tags{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.seo-tag{
+  padding:6px 14px;border-radius:20px;font-size:12px;color:rgba(255,255,255,.3);
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);
+}
+.seo-footer{text-align:center;padding:24px 20px;font-size:12px;color:rgba(255,255,255,.15);
+  border-top:1px solid rgba(255,255,255,.04)}
+.seo-footer a{color:rgba(255,255,255,.25);text-decoration:none}
+
+/* Toast */
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:999;
+  padding:10px 24px;border-radius:10px;background:#22C55E;color:#fff;
+  font-size:13px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;
+}
+.toast.show{opacity:1}
+.toast.error{background:#EF4444}
+
+/* ===== 移动端 ===== */
+@media(max-width:640px){
+  .site-nav{padding:10px 14px}
+  .nav-logo{font-size:15px}
+  .nav-links{gap:12px}
+  .nav-links a{font-size:12px}
+  .hero{min-height:420px;padding:80px 16px 40px}
+  .hero-icons{display:none}
+  .hero h1{font-size:26px}
+  .stats-bar{gap:20px}
+  .section{padding:40px 14px}
+  .tools-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .tool-card{padding:28px 16px;gap:10px}
+  .tool-card .icon{font-size:36px}
+  .tool-card h3{font-size:16px}
+  .usage-item{flex-wrap:wrap;gap:4px}
+  .usage-time{min-width:auto;font-size:11px}
+  .msg-card{padding:14px 16px}
+  .msg-form{padding:14px}
+  .msg-form .row{flex-direction:column}
+  .support-date{min-width:auto;font-size:11px}
+}
+
+@media(max-width:380px){
+  .hero h1{font-size:22px}
+  .tools-grid{gap:8px}
+  .tool-card{padding:22px 12px}
+  .tool-card h3{font-size:15px}
+  .hero-cta{padding:12px 28px;font-size:14px}
+}
+</style>
+</head>
+<body>
+
+<!-- 导航 -->
+<nav class="site-nav">
+  <a href="/" class="nav-logo">导播<span class="dot">星球</span></a>
+  <ul class="nav-links">
+    <li><a href="/tools/namebar/admin.html">人名条</a></li>
+    <li><a href="/tools/bball/admin.html">篮球</a></li>
+    <li><a href="/tools/fball/admin.html">足球</a></li>
+  </ul>
+</nav>
+
+<!-- Banner -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-icons">
+    <span class="hero-icon">🎥</span><span class="hero-icon">📡</span>
+    <span class="hero-icon">🏟️</span><span class="hero-icon">🎙️</span>
+    <span class="hero-icon">💡</span><span class="hero-icon">📺</span>
+  </div>
+  <div class="hero-content">
+    <span class="hero-badge">直播导播工具平台</span>
+    <h1>镜头会记录精彩<br>导播负责让精彩发生</h1>
+    <p class="hero-subtitle">服务会议直播 · 赛事直播 · 活动直播</p>
+    <p class="hero-tagline">会议人名条 / 篮球计分 / 足球记分 — OBS · vMix · 芯象 即插即用</p>
+    <a href="#tools" class="hero-cta">进入工具库</a>
+  </div>
+</section>
+
+<!-- 统计 -->
+<div class="stats-bar">
+  <div class="stat-item"><div class="stat-num" id="stat-users">1,200+</div><div class="stat-label">累计导播</div></div>
+  <div class="stat-item"><div class="stat-num" id="stat-sessions">8,500+</div><div class="stat-label">直播场次</div></div>
+  <div class="stat-item"><div class="stat-num" id="stat-uptime">99.9%</div><div class="stat-label">运行稳定</div></div>
+</div>
+
+<!-- 工具导航 -->
+<section class="section" id="tools">
+  <div class="section-header">
+    <h2>导播工具</h2>
+    <p class="sub">选择你需要的导播场景</p>
+  </div>
+  <div class="tools-grid">
+    <a href="/meeting.html" class="tool-card">
+      <span class="icon">🎤</span>
+      <h3>会议字幕</h3>
+      <p>会议直播人名条、嘉宾介绍卡、议程条</p>
+      <div class="tag-row">
+        <span class="tag">人名条</span><span class="tag">OBS</span><span class="tag">vMix</span>
+      </div>
+    </a>
+    <a href="/sports.html" class="tool-card">
+      <span class="icon">⚽</span>
+      <h3>赛事字幕</h3>
+      <p>篮球计分 · 足球记分 · 更多赛事</p>
+      <div class="tag-row">
+        <span class="tag">篮球</span><span class="tag">足球</span><span class="tag">实时</span>
+      </div>
+    </a>
+  </div>
+</section>
+
+<!-- 最近使用 -->
+<section class="section" id="recent">
+  <div class="section-header">
+    <h2>最近使用</h2>
+    <p class="sub">导播星球上的活跃动态</p>
+  </div>
+  <div class="usage-list" id="usage-list">
+    <p style="text-align:center;color:rgba(255,255,255,.2);padding:20px">加载中...</p>
+  </div>
+</section>
+
+<!-- 留言墙 -->
+<section class="section" id="wall">
+  <div class="section-header">
+    <h2>导播留言墙</h2>
+    <p class="sub">写下你在导播路上的故事</p>
+  </div>
+
+  <!-- 提交表单 -->
+  <div class="msg-form" id="msg-form">
+    <div class="row">
+      <input type="text" id="msg-city" placeholder="你的城市" maxlength="20" style="flex:0 0 120px">
+      <input type="text" id="msg-content-text" placeholder="写下你的导播故事..." maxlength="500">
+    </div>
+    <button onclick="submitMessage()">提交留言</button>
+    <p class="hint">留言提交后需审核，审核通过后展示</p>
+  </div>
+
+  <!-- 留言列表 -->
+  <div class="message-wall" id="message-wall">
+    <p style="text-align:center;color:rgba(255,255,255,.2);padding:20px">加载中...</p>
+  </div>
+</section>
+
+<!-- 支持者 -->
+<section class="section" id="support">
+  <div class="section-header">
+    <h2>感谢以下机构和个人对导播星球的支持</h2>
+    <p class="sub">导播星球目前由个人持续开发和维护，感谢以下朋友对服务器、域名及开发工作的支持。</p>
+  </div>
+  <div class="support-list" id="support-list">
+    <p style="text-align:center;color:rgba(255,255,255,.2);padding:20px">加载中...</p>
+  </div>
+</section>
+
+<!-- SEO 关键词 -->
+<section class="seo-section">
+  <div class="seo-tags">
+    <span class="seo-tag">导播工具</span><span class="seo-tag">会议直播</span><span class="seo-tag">体育直播</span>
+    <span class="seo-tag">OBS</span><span class="seo-tag">vMix</span><span class="seo-tag">字幕条</span>
+    <span class="seo-tag">计分板</span><span class="seo-tag">篮球记分</span><span class="seo-tag">足球记分</span>
+    <span class="seo-tag">导播台</span><span class="seo-tag">直播字幕</span><span class="seo-tag">人名条</span>
+    <span class="seo-tag">浏览器源</span><span class="seo-tag">XML数据源</span><span class="seo-tag">免费记分牌</span>
+    <span class="seo-tag">赛事直播</span><span class="seo-tag">活动直播</span><span class="seo-tag">远程控制</span>
+    <span class="seo-tag">多人协同</span><span class="seo-tag">手机控制</span><span class="seo-tag">直播导播</span>
+  </div>
+</section>
+
+<footer class="seo-footer">
+  <p>导播星球 · 直播导播工具平台 &copy; 2026 &nbsp;|&nbsp; <a href="/">首页</a></p>
+</footer>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== API 基础路径 =====
+const API = '';
+
+// ===== Toast =====
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+// ===== 最近使用 =====
+async function loadUsage() {
+  try {
+    const resp = await fetch(API + '/api/usage?limit=20');
+    const data = await resp.json();
+    const el = document.getElementById('usage-list');
+    if (!data.length) { el.innerHTML = '<p style="text-align:center;color:rgba(255,255,255,.2);padding:20px">暂无记录</p>'; return; }
+    el.innerHTML = data.map(u => {
+      const d = new Date(u.created_at + 'Z');
+      const time = d.toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      return `<div class="usage-item">
+        <span class="usage-dot"></span>
+        <span class="usage-time">${time}</span>
+        <span class="usage-nick">${escHtml(u.nickname)}</span>
+        <span class="usage-tool">使用了 ${escHtml(u.tool)}</span>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error('usage load error', e); }
+}
+
+// ===== 留言墙 =====
+async function loadMessages() {
+  try {
+    const resp = await fetch(API + '/api/messages?limit=20');
+    const data = await resp.json();
+    const el = document.getElementById('message-wall');
+    if (!data.rows || !data.rows.length) {
+      el.innerHTML = '<p style="text-align:center;color:rgba(255,255,255,.2);padding:20px">还没有留言，写下第一条吧</p>';
+      return;
+    }
+    el.innerHTML = data.rows.map(m => {
+      const d = new Date(m.created_at + 'Z');
+      const time = d.toLocaleString('zh-CN', { month:'2-digit', day:'2-digit' });
+      return `<div class="msg-card${m.is_pinned ? ' pinned' : ''}">
+        ${m.is_pinned ? '<span class="msg-pin">📌 置顶</span>' : ''}
+        <div class="msg-header"><span class="msg-city">📍${escHtml(m.city)}</span></div>
+        <div class="msg-content">${escHtml(m.content)}</div>
+        <div class="msg-footer">
+          <span class="msg-time">${time}</span>
+          <button class="msg-like" onclick="likeMessage(${m.id}, this)" data-liked="false">
+            👍 <span>${m.likes}</span>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error('messages load error', e); }
+}
+
+async function likeMessage(id, btn) {
+  if (btn.dataset.liked === 'true') return;
+  try {
+    const resp = await fetch(API + '/api/messages/' + id + '/like', { method: 'POST' });
+    const data = await resp.json();
+    if (data.success) {
+      btn.dataset.liked = 'true';
+      btn.classList.add('liked');
+      btn.querySelector('span').textContent = data.likes;
+    }
+  } catch(e) {}
+}
+
+async function submitMessage() {
+  const city = document.getElementById('msg-city').value.trim();
+  const content = document.getElementById('msg-content-text').value.trim();
+  if (!city) return showToast('请填写城市', true);
+  if (!content) return showToast('请填写留言内容', true);
+  try {
+    const resp = await fetch(API + '/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city, content })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showToast('留言已提交，审核通过后展示');
+      document.getElementById('msg-city').value = '';
+      document.getElementById('msg-content-text').value = '';
+    } else {
+      showToast(data.error || '提交失败', true);
+    }
+  } catch(e) {
+    showToast('网络错误', true);
+  }
+}
+
+// ===== 支持者 =====
+async function loadSupporters() {
+  try {
+    const resp = await fetch(API + '/api/supporters');
+    const data = await resp.json();
+    const el = document.getElementById('support-list');
+    if (!data.length) {
+      el.innerHTML = '<p style="text-align:center;color:rgba(255,255,255,.2);padding:20px">即将开放</p>';
+      return;
+    }
+    el.innerHTML = data.map(s => {
+      const d = new Date(s.created_at + 'Z');
+      const time = d.toLocaleString('zh-CN', { month:'2-digit', day:'2-digit' });
+      return `<div class="support-item">
+        <span class="support-date">${time}</span>
+        <a class="support-name" href="/u/${escHtml(s.slug)}">${escHtml(s.name)}</a>
+        <span class="support-amount">${escHtml(s.amount)}</span>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error('supporters load error', e); }
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ===== 启动 =====
+loadUsage();
+loadMessages();
+loadSupporters();
+</script>
+</body>
+</html>

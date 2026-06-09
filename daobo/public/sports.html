@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+<title>赛事字幕 — 导播星球</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;background:#070b18;color:#e0e4f0;min-height:100vh}
+.header{text-align:center;padding:60px 20px 32px}
+.header .back{color:#6366F1;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:16px}
+.header h1{font-size:clamp(22px,4vw,32px);font-weight:900;color:#fff;margin-bottom:6px}
+.header .sub{font-size:14px;color:rgba(255,255,255,.35)}
+.tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;max-width:900px;margin:0 auto;padding:0 20px 60px}
+.tool-item{display:flex;flex-direction:column;align-items:center;gap:12px;padding:32px 20px;border-radius:16px;
+  background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);text-decoration:none;transition:.25s}
+.tool-item:hover{background:rgba(255,107,0,.06);border-color:rgba(255,107,0,.25);transform:translateY(-3px)}
+.tool-item .icon{font-size:40px}
+.tool-item h3{font-size:17px;font-weight:700;color:#fff}
+.tool-item p{font-size:12px;color:rgba(255,255,255,.35);text-align:center}
+.tool-item .coming{font-size:11px;padding:3px 10px;border-radius:8px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.25)}
+.footer{text-align:center;padding:40px 20px;border-top:1px solid rgba(255,255,255,.04)}
+.footer a{color:rgba(255,255,255,.3);text-decoration:none;font-size:13px}
+</style>
+</head>
+<body>
+<div class="header">
+  <a href="/" class="back">← 返回导播星球</a>
+  <h1>⚽ 赛事字幕</h1>
+  <p class="sub">让每一场比赛都专业直播</p>
+</div>
+<div class="tools">
+  <a href="/tools/bball/admin.html" class="tool-item">
+    <span class="icon">🏀</span>
+    <h3>篮球计分板</h3>
+    <p>四节计时 · 24秒进攻 · 队名+比分 · XML/JSON数据源</p>
+  </a>
+  <a href="/tools/fball/admin.html" class="tool-item">
+    <span class="icon">⚽</span>
+    <h3>足球计分板</h3>
+    <p>正计时 · 伤停补时 · 上下半场 · 阶段切换</p>
+  </a>
+  <div class="tool-item">
+    <span class="icon">🏐</span>
+    <h3>排球计分</h3>
+    <p>局分、总分、发球权</p>
+    <span class="coming">即将上线</span>
+  </div>
+  <div class="tool-item">
+    <span class="icon">🏸</span>
+    <h3>羽毛球计分</h3>
+    <p>单打/双打、局分制</p>
+    <span class="coming">即将上线</span>
+  </div>
+</div>
+<div class="footer"><a href="/">导播星球</a></div>
+</body>
+</html>
