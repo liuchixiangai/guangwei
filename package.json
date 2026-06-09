@@ -1,0 +1,14 @@
+{
+  "name": "daobo-landing",
+  "version": "1.0.0",
+  "description": "导播星球首页及工具平台",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "express": "^4.21.0",
+    "cors": "^2.8.5"
+  }
+}
