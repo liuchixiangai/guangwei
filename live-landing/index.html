@@ -160,6 +160,16 @@
         }
         .scrolling-wall:hover { animation-play-state: paused; }
 
+        /* Golden highlight for freshly submitted blessings */
+        @keyframes golden-pulse {
+            0%, 100% { box-shadow: 0 0 24px rgba(255,215,0,.5), 0 0 48px rgba(255,180,0,.25), inset 0 0 12px rgba(255,215,0,.1); }
+            50% { box-shadow: 0 0 40px rgba(255,215,0,.8), 0 0 80px rgba(255,180,0,.4), inset 0 0 20px rgba(255,215,0,.2); }
+        }
+        .animate-golden-highlight {
+            animation: golden-pulse 2s ease-in-out 2;
+            border: 2px solid #FFD700 !important;
+        }
+
         /* Entrance Animations */
         @keyframes slide-up-fade {
             from { opacity: 0; transform: translateY(30px); }
@@ -481,9 +491,26 @@
         const list = document.getElementById('blessing-list');
         const phrase = BLESS_PHRASES[Math.floor(Math.random() * BLESS_PHRASES.length)];
         const newCard = document.createElement('div');
-        newCard.className = 'glass-card rounded-xl p-4 flex flex-col justify-center border-l-4 border-secondary-fixed';
-        newCard.innerHTML = '<p class="text-secondary-fixed font-headline-md leading-tight">祝【' + escHtml(name) + '】' + phrase + '</p>';
-        list.insertBefore(newCard, list.firstChild);
+        newCard.className = 'fresh-blessing border-2 border-[#FFD700] animate-golden-highlight';
+        newCard.style.cssText = 'padding:16px;border-radius:16px;background:rgba(255,215,0,.12);box-shadow:0 0 24px rgba(255,215,0,.5),inset 0 0 12px rgba(255,215,0,.1);margin-bottom:6px;position:relative;';
+        newCard.innerHTML = '<p class=\"text-secondary-fixed font-headline-md leading-tight\" style=\"text-shadow:0 0 8px rgba(255,215,0,.4)\">✨祝【' + escHtml(name) + '】' + phrase + '</p>';
+        // Insert at very top
+        if (list.firstChild) {
+            list.insertBefore(newCard, list.firstChild);
+        } else {
+            list.appendChild(newCard);
+        }
+        // Scroll blessing wall to top to ensure visibility
+        var wall = document.getElementById('scrollingWall');
+        if (wall) wall.style.animation = 'none';
+        setTimeout(function() {
+            if (wall) wall.style.animation = '';
+            // Remove golden glow after 6 seconds
+            newCard.style.transition = 'all 1.5s ease-out';
+            newCard.style.boxShadow = '0 0 0px rgba(255,215,0,0)';
+            newCard.style.background = 'rgba(255,255,255,.1)';
+            newCard.style.borderColor = 'rgba(255,215,0,.6)';
+        }, 5000);
     }
 
     function escHtml(s) {
