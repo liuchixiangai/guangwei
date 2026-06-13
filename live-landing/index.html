@@ -156,7 +156,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            animation: vertical-scroll 25s linear infinite;
+            /* scrolling disabled for debugging */
         }
         .scrolling-wall:hover { animation-play-state: paused; }
 
@@ -359,12 +359,12 @@
             </h2>
 <span class="text-on-surface-variant text-label-bold" id="blessCount">0 条祝福</span>
 </div>
-<div class="overflow-hidden relative rounded-2xl border border-white/10 bg-black/20 backdrop-blur-sm shadow-inner h-[800px]">
+<div class="overflow-y-auto relative rounded-2xl border border-white/10 bg-black/20 backdrop-blur-sm shadow-inner">
 <div class="scrolling-wall p-3" id="scrollingWall" style="animation-duration: 15s;">
   <div class="flex flex-col gap-3" id="blessing-list">
     <!-- dynamically filled by loadBlessings() -->
   </div>
-</div><div class="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-black/60 to-transparent pointer-events-none z-10"></div>
+</div>
 </div>
 </section>
 </main>
@@ -521,38 +521,31 @@
 
     // Load blessings from server on page load
     async function loadBlessings() {
+        var statusEl = document.getElementById('blessCount');
+        var list = document.getElementById('blessing-list');
+        if (!list) { console.error('blessing-list not found!'); return; }
+        statusEl.textContent = '加载中...';
         try {
-            const resp = await fetch('/live/api/blessings');
-            const data = await resp.json();
-            document.getElementById('blessCount').textContent = data.total + ' 条祝福';
-            const list = document.getElementById('blessing-list');
+            var resp = await fetch('/live/api/blessings');
+            var data = await resp.json();
+            statusEl.textContent = data.total + ' 条祝福';
             list.innerHTML = '';
-            // Duplicate for seamless loop
-            const render = (items) => {
-                items.forEach(b => {
-                    const phrase = BLESS_PHRASES[Math.floor(Math.random() * BLESS_PHRASES.length)];
-                    const card = document.createElement('div');
-                    card.className = 'glass-card rounded-xl p-4 flex flex-col justify-center border-l-4 border-secondary-fixed';
-                    card.innerHTML = '<p class="text-secondary-fixed font-headline-md leading-tight">祝【' + escHtml(b.name) + '】' + phrase + '</p>';
-                    list.appendChild(card);
-                });
-            };
-            if (data.blessings.length) {
-                render(data.blessings);
-                // Duplicate for smooth infinite scroll
-                render(data.blessings);
-            } else {
-                // Default seed
-                ['张嘉豪','刘欣雅','王博','陈美玲','李一凡','周子豪'].forEach(n => {
-                    const phrase = BLESS_PHRASES[Math.floor(Math.random() * BLESS_PHRASES.length)];
-                    const card = document.createElement('div');
-                    card.className = 'glass-card rounded-xl p-4 flex flex-col justify-center border-l-4 border-secondary-fixed';
-                    card.innerHTML = '<p class="text-secondary-fixed font-headline-md leading-tight">祝【'+n+'】'+phrase+'</p>';
-                    list.appendChild(card);
-                });
+            if (!data.blessings || !data.blessings.length) {
+                list.innerHTML = '<p style="text-align:center;color:#FFD700;padding:20px;font-size:20px;">还没有祝福，写下第一条吧！🌟</p>';
+                return;
             }
+            data.blessings.forEach(function(b) {
+                var phrase = BLESS_PHRASES[Math.floor(Math.random() * BLESS_PHRASES.length)];
+                var card = document.createElement('div');
+                card.className = 'glass-card rounded-xl p-4 flex flex-col justify-center border-l-4 border-secondary-fixed';
+                card.style.marginBottom = '8px';
+                card.innerHTML = '<p class="text-secondary-fixed font-headline-md leading-tight">祝【' + escHtml(b.name) + '】' + phrase + '</p>';
+                list.appendChild(card);
+            });
         } catch(e) {
-            console.error('load blessings error', e);
+            statusEl.textContent = '加载失败';
+            list.innerHTML = '<p style="text-align:center;color:#EF4444;padding:20px;">加载失败: ' + escHtml(e.message || '') + '</p>';
+            console.error('load error', e);
         }
     }
 
