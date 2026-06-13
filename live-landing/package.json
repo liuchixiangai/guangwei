@@ -1,0 +1,10 @@
+{
+  "name": "live-landing",
+  "version": "1.0.0",
+  "description": "犇鑫学校中考送考直播落地页",
+  "main": "server.js",
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "express": "^4.21.0"
+  }
+}
