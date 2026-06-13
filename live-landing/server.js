@@ -47,7 +47,11 @@ app.get('/api/blessings', (req, res) => {
 });
 
 // 静态文件
-app.use(express.static(__dirname));
+app.use(express.static(__dirname, {
+  setHeaders: function(res) {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+}));
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[LiveLanding] running on port ${PORT}`);

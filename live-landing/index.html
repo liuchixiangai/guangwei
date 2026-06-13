@@ -319,7 +319,7 @@
 <section class="px-container-margin py-4 entrance-anim delay-1">
 <div class="relative w-full aspect-video rounded-xl overflow-hidden border-2 border-secondary-fixed/60 shadow-[0_0_30px_rgba(255,215,0,0.3)] bg-black animate-video-border">
 <!-- Live Iframe Player -->
-<iframe src="https://live.liuchixiang.com/live/m/vzliveplayer?type=live&amp;vid=1705445691&amp;liveId=1744601907" class="absolute inset-0 w-full h-full border-0" allow="autoplay; fullscreen" allowfullscreen="" scrolling="no"></iframe>
+<iframe src="https://live.liuchixiang.com/live/m/vzliveplayer?type=live&amp;vid=1705445691&amp;liveId=1744601907" class="absolute inset-0 w-full h-full border-0" allow="autoplay; fullscreen" allowfullscreen="" scrolling="no" style="pointer-events:none"></iframe>
 <!-- Lock overlay: prevent mouse interaction with iframe -->
 <div class="absolute inset-0 z-10" style="pointer-events:none"></div>
 <div class="danmu-container" id="danmuContainer"></div>
@@ -529,7 +529,7 @@
         }
     }
 
-    loadBlessings();
+    if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",loadBlessings)}else{loadBlessings()}
     }
 
     // Danmu (Bullet Curtain) Effect
